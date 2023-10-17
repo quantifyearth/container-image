@@ -1,0 +1,5 @@
+type date_time = Ptime.t * Ptime.tz_offset_s option [@@deriving yojson]
+type digest = SHA256 of string [@@deriving yojson]
+type 'a map = (string * 'a) list [@@deriving yojson]
+type env = string * string [@@deriving yojson]
+type set = string list [@@deriving yojson]

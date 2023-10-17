@@ -1,0 +1,6 @@
+(library
+ (public_name oci-image)
+ (name oci_image)
+ (libraries fmt digestif yojson astring ptime)
+ (preprocess
+  (pps ppx_deriving_yojson)))
