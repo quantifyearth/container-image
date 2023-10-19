@@ -13,6 +13,7 @@ type t =
   | Description
   | Base_image_digest
   | Base_image_name
+  | Other of string
 
 let to_string = function
   | Created -> "org.opencontainers.image.created"
@@ -29,20 +30,27 @@ let to_string = function
   | Description -> "org.opencontainers.image.description"
   | Base_image_digest -> "org.opencontainers.image.base.digest"
   | Base_image_name -> "org.opencontainers.image.base.name"
+  | Other s -> s
 
 let of_string = function
-  | "org.opencontainers.image.created" -> Some Created
-  | "org.opencontainers.image.authors" -> Some Authors
-  | "org.opencontainers.image.url" -> Some Url
-  | "org.opencontainers.image.documentation" -> Some Documentation
-  | "org.opencontainers.image.source" -> Some Source
-  | "org.opencontainers.image.version" -> Some Version
-  | "org.opencontainers.image.revision" -> Some Revision
-  | "org.opencontainers.image.vendor" -> Some Vendor
-  | "org.opencontainers.image.licenses" -> Some Licenses
-  | "org.opencontainers.image.ref.name" -> Some Ref_name
-  | "org.opencontainers.image.title" -> Some Title
-  | "org.opencontainers.image.description" -> Some Description
-  | "org.opencontainers.image.base.digest" -> Some Base_image_digest
-  | "org.opencontainers.image.base.name" -> Some Base_image_name
-  | _ -> None
+  | "org.opencontainers.image.created" -> Created
+  | "org.opencontainers.image.authors" -> Authors
+  | "org.opencontainers.image.url" -> Url
+  | "org.opencontainers.image.documentation" -> Documentation
+  | "org.opencontainers.image.source" -> Source
+  | "org.opencontainers.image.version" -> Version
+  | "org.opencontainers.image.revision" -> Revision
+  | "org.opencontainers.image.vendor" -> Vendor
+  | "org.opencontainers.image.licenses" -> Licenses
+  | "org.opencontainers.image.ref.name" -> Ref_name
+  | "org.opencontainers.image.title" -> Title
+  | "org.opencontainers.image.description" -> Description
+  | "org.opencontainers.image.base.digest" -> Base_image_digest
+  | "org.opencontainers.image.base.name" -> Base_image_name
+  | s -> Other s
+
+let to_yojson t = `String (to_string t)
+
+let of_yojson = function
+  | `String s -> Ok (of_string s)
+  | _ -> Error "annotation"

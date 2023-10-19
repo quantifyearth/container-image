@@ -2,22 +2,17 @@ open Common
 
 type media_type = Index
 
-let media_type_of_yojson = function
-  | `String "application/vnd.oci.image.index.v1+json" -> Ok Index
-  | _ -> Error "mediaType"
-
-let media_type_to_yojson Index =
-  `String "application/vnd.oci.image.index.v1+json"
-
-type rfc_6838 = string (* TODO write a proper parser *) [@@deriving yojson]
+let media_type_s = Media_type.to_string Image_index
+let media_type_of_yojson = const_of_yojson Index media_type_s
+let media_type_to_yojson Index = `String media_type_s
 
 type t = {
-  schema_version : int; [@key "schemaVersion"]
+  version : v2; [@key "schemaVersion"]
   media_type : media_type; [@key "mediaType"]
   artifact_type : rfc_6838 option; [@key "artifactType"] [@default None]
   manifests : Descriptor.t list;
   platform : Platform.t option; [@default None]
   subject : Descriptor.t option; [@default None]
-  annotations : string map; [@key "annotations"] [@default []]
+  annotations : Annotation.t map; [@key "annotations"] [@default []]
 }
 [@@deriving yojson]

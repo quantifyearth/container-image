@@ -2,3 +2,4 @@ version = 0.26.1
 profile = conventional
 break-infix = fit-or-vertical
 parse-docstrings = true
+wrap-comments = true

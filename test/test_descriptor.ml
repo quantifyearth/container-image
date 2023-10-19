@@ -26,7 +26,6 @@ let test_descriptor json expected_success test_name =
 
 let suite =
   [
-    (* Valid descriptor *)
     test_descriptor
       {|
 {
@@ -36,7 +35,6 @@ let suite =
 }
        |}
       true "Valid descriptor";
-    (* Invalid descriptor: size is negative *)
     test_descriptor
       {|
 {
@@ -46,7 +44,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with negative size";
-    (* Invalid descriptor: digest is missing *)
     test_descriptor
       {|
 {
@@ -55,7 +52,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with missing digest";
-    (* Invalid descriptor: extra field *)
     test_descriptor
       {|
 {
@@ -66,7 +62,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with extra field";
-    (* Invalid descriptor: mediaType is missing *)
     test_descriptor
       {|
 {
@@ -75,7 +70,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with missing mediaType";
-    (* Invalid descriptor: size is a string *)
     test_descriptor
       {|
 {
@@ -85,7 +79,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with size as a string";
-    (* Invalid descriptor: digest is null *)
     test_descriptor
       {|
 {
@@ -95,7 +88,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with null digest";
-    (* Invalid descriptor: mediaType is incorrect *)
     test_descriptor
       {|
 {
@@ -105,7 +97,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with incorrect mediaType";
-    (* Invalid descriptor: digest has invalid format *)
     test_descriptor
       {|
 {
@@ -115,7 +106,6 @@ let suite =
 }
        |}
       false "Invalid descriptor with incorrect digest format";
-    (* Invalid descriptor: JSON structure is completely invalid *)
     test_descriptor
       {|
 {

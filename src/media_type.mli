@@ -13,3 +13,5 @@ type t =
   | Layer_non_distributable_tar_zstd
   | Custom of string
 [@@deriving yojson]
+
+val to_string : t -> string

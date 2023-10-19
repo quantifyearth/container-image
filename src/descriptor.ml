@@ -18,6 +18,8 @@ type t = {
 }
 [@@deriving yojson]
 
+let media_type t = t.media_type
+
 let empty =
   {
     media_type = Empty;

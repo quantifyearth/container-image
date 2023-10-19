@@ -72,3 +72,17 @@ let set_of_yojson s =
   match map_of_yojson nil_of_yojson s with
   | Ok l -> Ok (List.rev_map (fun (s, Nil) -> s) l)
   | Error e -> Error e
+
+type v2 = V2
+
+let v2_of_yojson = function
+  | `Int 2 -> Ok V2
+  | _ -> Fmt.kstr (fun s -> Error s) "expecting the constant 2"
+
+let v2_to_yojson V2 = `Int 2
+
+let const_of_yojson const n = function
+  | `String s when n = s -> Ok const
+  | _ -> Fmt.kstr (fun s -> Error s) "expecting the constant %S" n
+
+type rfc_6838 = string (* TODO write a proper parser *) [@@deriving yojson]
