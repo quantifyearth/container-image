@@ -12,17 +12,6 @@ let date_time_of_yojson : Yojson.Safe.t -> (date_time, string) result = function
 let date_time_to_yojson : date_time -> Yojson.Safe.t =
  fun (t, tz) -> `String (Ptime.to_rfc3339 ?tz_offset_s:tz t)
 
-type digest = SHA256 of string
-
-let digest_of_yojson = function
-  | `String s -> (
-      match String.cut ~sep:":" s with
-      | Some ("sha256", s) -> Ok (SHA256 s)
-      | _ -> Error "digest: invalid algorithm")
-  | _ -> Error "digest"
-
-let digest_to_yojson (SHA256 s) = `String ("sha256:" ^ s)
-
 type 'a map = (string * 'a) list
 
 exception Break of string
@@ -85,4 +74,11 @@ let const_of_yojson const n = function
   | `String s when n = s -> Ok const
   | _ -> Fmt.kstr (fun s -> Error s) "expecting the constant %S" n
 
-type rfc_6838 = string (* TODO write a proper parser *) [@@deriving yojson]
+(* TODO write a proper parserfor RFC 6838 *)
+type rfc_6838 = string [@@deriving yojson]
+type z = int64 [@@deriving yojson]
+
+let z_of_yojson n =
+  match z_of_yojson n with
+  | Error e -> Error e
+  | Ok n -> if n < 0L then Error "negative int" else Ok n

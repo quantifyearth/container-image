@@ -14,7 +14,7 @@ type config = {
 }
 [@@deriving yojson]
 
-type rootfs = { type_ : string; [@key "type"] diff_ids : digest list }
+type rootfs = { type_ : string; [@key "type"] diff_ids : Digest.t list }
 [@@deriving yojson]
 
 type history = {

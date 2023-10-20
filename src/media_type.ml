@@ -13,7 +13,7 @@ type t =
   | Layer_non_distributable_tar
   | Layer_non_distributable_tar_gzip
   | Layer_non_distributable_tar_zstd
-  | Custom of string
+  | Custom of string * string
 
 let of_string = function
   | "application/vnd.oci.descriptor.v1+json" -> Ok Descriptor
@@ -33,8 +33,8 @@ let of_string = function
       Ok Layer_non_distributable_tar_zstd
   | s -> (
       (* TODO: not totally sure what to do here *)
-      match String.cut ~sep:"application/" s with
-      | Some (_, s) -> Ok (Custom s)
+      match String.cut ~sep:"/" s with
+      | Some (x, y) -> Ok (Custom (x, y))
       | _ -> Error "invalid mediaType")
 
 let to_string = function
@@ -53,7 +53,7 @@ let to_string = function
       "application/vnd.oci.image.layer.nondistributable.v1.tar+gzip"
   | Layer_non_distributable_tar_zstd ->
       "application/vnd.oci.image.layer.nondistributable.v1.tar+zstd"
-  | Custom s -> "application/" ^ s
+  | Custom (x, y) -> x ^ "/" ^ y
 
 let of_yojson = function
   | `String s -> of_string s

@@ -11,7 +11,7 @@ type t =
   | Layer_non_distributable_tar
   | Layer_non_distributable_tar_gzip
   | Layer_non_distributable_tar_zstd
-  | Custom of string
+  | Custom of string * string
 [@@deriving yojson]
 
 val to_string : t -> string

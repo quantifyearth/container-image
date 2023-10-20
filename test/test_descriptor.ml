@@ -33,7 +33,7 @@ let suite =
   "size": 7682,
   "digest": "sha256:5b0bcabd1ed22e9fb1310cf6c2dec7cdef19f0ad69efa1f392e94a4333501270"
 }
-                     |}
+ |}
       false "Valid descriptor";
     test_descriptor
       {|
