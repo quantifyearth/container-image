@@ -44,7 +44,7 @@ type t = {
   annotations : Annotation.t map; [@default []]
   data : Base64.t; [@key "data"] [@default ""]
   platform : Platform.t option; [@default None]
-  artifact_type : rfc_6838 option; [@key "artifactType"] [@default None]
+  artifact_type : Rfc_6838.t option; [@key "artifactType"] [@default None]
 }
 [@@deriving yojson]
 
