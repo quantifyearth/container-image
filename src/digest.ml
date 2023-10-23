@@ -30,7 +30,7 @@ let algorithm_of_string = function
         Ok (Unregistered l)
       with Break e -> Error e)
 
-let string_of_algorithm = function
+let algorithm_to_string = function
   | SHA256 -> "sha256"
   | SHA512 -> "sha512"
   | Unregistered s -> String.concat ~sep:"+" s
@@ -69,7 +69,7 @@ let of_string str =
           | Error e -> Error e)
       | Error e -> Error e)
 
-let to_string t = string_of_algorithm t.algorithm ^ ":" ^ t.encoded
+let to_string t = algorithm_to_string t.algorithm ^ ":" ^ t.encoded
 let of_yojson = function `String s -> of_string s | _ -> Error "digest"
 let to_yojson s = `String (to_string s)
 
@@ -82,3 +82,31 @@ let sha512 s =
   match encoded_of_string SHA512 s with
   | Ok e -> { algorithm = SHA512; encoded = e }
   | Error e -> invalid_arg e
+
+let validation_error a to_hex ~got ~expected =
+  let a = algorithm_to_string a in
+  Fmt.kstr
+    (fun e -> Error e)
+    "digest: validation error, got %s:%s, expected %s:%s" a (to_hex got) a
+    (to_hex expected)
+
+let unregistered_error ds =
+  Fmt.kstr
+    (fun e -> Error e)
+    "digest: unregistered algorithms %a"
+    Fmt.(Dump.list string)
+    ds
+
+let validate t buf =
+  match t.algorithm with
+  | SHA256 ->
+      let expected = Digestif.SHA256.of_hex t.encoded in
+      let got = Digestif.SHA256.digest_string buf in
+      if Digestif.SHA256.equal got expected then Ok ()
+      else validation_error SHA256 Digestif.SHA256.to_hex ~got ~expected
+  | SHA512 ->
+      let expected = Digestif.SHA512.of_hex t.encoded in
+      let got = Digestif.SHA512.digest_string buf in
+      if Digestif.SHA512.equal got expected then Ok ()
+      else validation_error SHA512 Digestif.SHA512.to_hex ~got ~expected
+  | Unregistered ds -> unregistered_error ds

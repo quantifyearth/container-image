@@ -1,6 +1,5 @@
 open Common
 
-type version = v2
 type media_type = Manifest
 
 let media_type_s = Media_type.to_string Image_manifest
@@ -41,7 +40,7 @@ let check t =
   in
   ()
 
-let of_json t =
+let of_yojson t =
   match of_yojson t with
   | Error _ as e -> e
   | Ok t -> (

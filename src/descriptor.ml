@@ -14,7 +14,11 @@ module Uri = struct
   let to_yojson u = `String (Uri.to_string u)
 end
 
-module Base64 = struct
+module Base64 : sig
+  type t [@@deriving yojson]
+
+  val to_string : t -> (string, string) result
+end = struct
   type t = string
 
   exception Break of string
@@ -34,6 +38,9 @@ module Base64 = struct
     | _ -> Error "urls"
 
   let to_yojson u = `String u
+
+  let to_string u =
+    match Base64.decode u with Ok s -> Ok s | Error (`Msg e) -> Error e
 end
 
 type t = {
@@ -42,7 +49,7 @@ type t = {
   size : z; [@key "size"]
   urls : Uri.t list; [@key "urls"] [@default []]
   annotations : Annotation.t map; [@default []]
-  data : Base64.t; [@key "data"] [@default ""]
+  data : Base64.t option; [@key "data"] [@default None]
   platform : Platform.t option; [@default None]
   artifact_type : Rfc_6838.t option; [@key "artifactType"] [@default None]
 }
@@ -57,9 +64,29 @@ let empty =
     digest =
       Digest.sha256
         "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a";
-    data = "";
+    data = None;
     annotations = [];
     urls = [];
     platform = None;
     artifact_type = None;
   }
+
+let check t =
+  match t.data with
+  | None -> Ok ()
+  | Some data -> (
+      match Base64.to_string data with
+      | Error e -> Error e
+      | Ok data ->
+          if Int64.to_int t.size = String.length data then
+            Digest.validate t.digest data
+          else
+            Fmt.kstr
+              (fun s -> Error s)
+              "invalid size: expected %Ld, got %d" t.size (String.length data))
+
+let of_yojson json =
+  let result = of_yojson json in
+  match result with
+  | Error _ -> result
+  | Ok t -> ( match check t with Ok () -> result | Error e -> Error e)

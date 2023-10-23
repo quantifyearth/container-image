@@ -6,3 +6,12 @@
 module Config = Config
 module Descriptor = Descriptor
 module Index = Index
+module Manifest = Manifest
+module Annotation = Annotation
+
+type t
+
+val manifest : t -> Manifest.t
+val index : t -> Index.t option
+val layers : t -> Layer.t list
+val config : t -> Config.t
