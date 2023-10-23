@@ -17,12 +17,14 @@ end
 module Base64 : sig
   type t [@@deriving yojson]
 
+  val of_raw : string -> t
   val to_string : t -> (string, string) result
 end = struct
   type t = string
 
   exception Break of string
 
+  let of_raw x = x
   let break fmt = Fmt.kstr (fun s -> raise (Break s)) fmt
 
   let assert_b64 = function
@@ -51,7 +53,7 @@ type t = {
   annotations : Annotation.t map; [@default []]
   data : Base64.t option; [@key "data"] [@default None]
   platform : Platform.t option; [@default None]
-  artifact_type : Rfc_6838.t option; [@key "artifactType"] [@default None]
+  artifact_type : Content_type.t option; [@key "artifactType"] [@default None]
 }
 [@@deriving yojson]
 
@@ -64,7 +66,7 @@ let empty =
     digest =
       Digest.sha256
         "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a";
-    data = None;
+    data = Some (Base64.of_raw "e30=");
     annotations = [];
     urls = [];
     platform = None;

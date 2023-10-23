@@ -11,7 +11,7 @@ type t =
   | Layer_non_distributable_tar
   | Layer_non_distributable_tar_gzip
   | Layer_non_distributable_tar_zstd
-  | Other of Rfc_6838.t
+  | Other of Content_type.t
 
 let of_string = function
   | "application/vnd.oci.descriptor.v1+json" -> Ok Descriptor
@@ -30,7 +30,7 @@ let of_string = function
   | "application/vnd.oci.image.layer.nondistributable.v1.tar+zstd" ->
       Ok Layer_non_distributable_tar_zstd
   | s -> (
-      match Rfc_6838.of_string s with
+      match Content_type.of_string s with
       | Ok s -> Ok (Other s)
       | Error e -> Error e)
 
@@ -50,7 +50,7 @@ let to_string = function
       "application/vnd.oci.image.layer.nondistributable.v1.tar+gzip"
   | Layer_non_distributable_tar_zstd ->
       "application/vnd.oci.image.layer.nondistributable.v1.tar+zstd"
-  | Other e -> Rfc_6838.to_string e
+  | Other e -> Content_type.to_string e
 
 let of_yojson = function
   | `String s -> of_string s

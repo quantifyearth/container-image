@@ -3,6 +3,8 @@ open Astring
 type algorithm = SHA256 | SHA512 | Unregistered of string list
 type t = { algorithm : algorithm; encoded : string }
 
+let algorithm t = t.algorithm
+
 exception Break of string
 
 let break fmt = Fmt.kstr (fun s -> raise (Break s)) fmt
@@ -30,7 +32,7 @@ let algorithm_of_string = function
         Ok (Unregistered l)
       with Break e -> Error e)
 
-let algorithm_to_string = function
+let string_of_algorithm = function
   | SHA256 -> "sha256"
   | SHA512 -> "sha512"
   | Unregistered s -> String.concat ~sep:"+" s
@@ -58,6 +60,11 @@ let encoded_of_string algo e =
     Ok e
   with Break e -> Error e
 
+let v a e =
+  match encoded_of_string a e with
+  | Ok e -> Ok { algorithm = a; encoded = e }
+  | Error e -> Error e
+
 let of_string str =
   match String.cut ~sep:":" str with
   | None -> Error "digest"
@@ -69,7 +76,7 @@ let of_string str =
           | Error e -> Error e)
       | Error e -> Error e)
 
-let to_string t = algorithm_to_string t.algorithm ^ ":" ^ t.encoded
+let to_string t = string_of_algorithm t.algorithm ^ ":" ^ t.encoded
 let of_yojson = function `String s -> of_string s | _ -> Error "digest"
 let to_yojson s = `String (to_string s)
 
@@ -84,7 +91,7 @@ let sha512 s =
   | Error e -> invalid_arg e
 
 let validation_error a to_hex ~got ~expected =
-  let a = algorithm_to_string a in
+  let a = string_of_algorithm a in
   Fmt.kstr
     (fun e -> Error e)
     "digest: validation error, got %s:%s, expected %s:%s" a (to_hex got) a
