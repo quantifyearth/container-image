@@ -334,6 +334,53 @@ let test_valid_without_optional_fields () =
   | Some _ -> ()
   | None -> fail "expected successful parsing, but it failed."
 
+let example () =
+  let json =
+    {|
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "manifests": [
+    {
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "size": 7143,
+      "digest": "sha256:0228f90e926ba6b96e4f39cf294b2586d38fbb5a1e385c05cd1ee40ea54fe7fd",
+      "annotations": {
+        "org.opencontainers.image.ref.name": "stable-release"
+      }
+    },
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "size": 7143,
+      "digest": "sha256:e692418e4cbaf90ca69d05a66403747baa33ee08806650b51fab815ad7fc331f",
+      "platform": {
+        "architecture": "ppc64le",
+        "os": "linux"
+      },
+      "annotations": {
+        "org.opencontainers.image.ref.name": "v1.0"
+      }
+    },
+    {
+      "mediaType": "application/xml",
+      "size": 7143,
+      "digest": "sha256:b3d63d132d21c3ff4c35a061adf23cf43da8ae054247e32faa95494d904a007e",
+      "annotations": {
+        "org.freedesktop.specifications.metainfo.version": "1.0",
+        "org.freedesktop.specifications.metainfo.type": "AppStream"
+      }
+    }
+  ],
+  "annotations": {
+    "com.example.index.revision": "r124356"
+  }
+              }
+  |}
+  in
+  match of_json json with
+  | Some _ -> ()
+  | None -> fail "expected successful parsing, but it failed."
+
 let suite =
   [
     test_case "Invalid mediaType" `Quick test_invalid_media_type;
@@ -353,4 +400,5 @@ let suite =
     test_case "Empty manifest media type" `Quick test_empty_manifest_media_type;
     test_case "Valid with customized media type" `Quick
       test_valid_with_customized_media_type;
+    test_case "example" `Quick example;
   ]

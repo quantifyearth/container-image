@@ -8,7 +8,7 @@ let media_type_to_yojson Index = `String media_type_s
 
 type t = {
   version : v2; [@key "schemaVersion"]
-  media_type : media_type; [@key "mediaType"]
+  media_type : media_type; [@key "mediaType"] [@default Index]
   artifact_type : rfc_6838 option; [@key "artifactType"] [@default None]
   manifests : Descriptor.t list;
   platform : Platform.t option; [@default None]

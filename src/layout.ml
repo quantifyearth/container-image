@@ -1,4 +1,5 @@
-module type Blob = sig
+(*
+  module type Blob = sig
   type root
   type t
 
@@ -15,7 +16,7 @@ module Unix = struct
     match Digest.v algo encoded with
     | Error e -> Error e
     | Ok digest -> (
-        let path = root / "blobs" / Digest.string_of_algoritm algo / encoded in
+        let path = root / "blobs" / Digest.string_of_algorithm algo / encoded in
         if not (Sys.file_exists path) then Ok None
         else
           let ic = open_in path in
@@ -24,6 +25,13 @@ module Unix = struct
           | Ok () -> Ok (Some file)
           | Error e -> Error e)
 end
+
+let oci_layout = {|
+{
+    "imageLayoutVersion": "1.0.0"
+}
+|}
+ *)
 
 let file = "oci-layout"
 let version = "1.0.0"
