@@ -65,6 +65,8 @@ let v a e =
   | Ok e -> Ok { algorithm = a; encoded = e }
   | Error e -> Error e
 
+let unsafe_v a e = { algorithm = a; encoded = e }
+
 let of_string str =
   match String.cut ~sep:":" str with
   | None -> Error "digest"
@@ -77,8 +79,12 @@ let of_string str =
       | Error e -> Error e)
 
 let to_string t = string_of_algorithm t.algorithm ^ ":" ^ t.encoded
+let pp = Fmt.of_to_string to_string
 let of_yojson = function `String s -> of_string s | _ -> Error "digest"
 let to_yojson s = `String (to_string s)
+
+let equal x y =
+  x == y || (x.algorithm = y.algorithm && String.equal x.encoded y.encoded)
 
 let sha256 s =
   match encoded_of_string SHA256 s with
@@ -117,3 +123,35 @@ let validate t buf =
       if Digestif.SHA512.equal got expected then Ok ()
       else validation_error SHA512 Digestif.SHA512.to_hex ~got ~expected
   | Unregistered ds -> unregistered_error ds
+
+let digest_string algo str =
+  let encoded =
+    match algo with
+    | SHA256 -> Digestif.SHA256.(to_hex (digest_string str))
+    | SHA512 -> Digestif.SHA512.(to_hex (digest_string str))
+    | _ -> invalid_arg "digest_string"
+  in
+  unsafe_v algo encoded
+
+let chain algo = function
+  | [] -> []
+  | h :: t ->
+      let _, l =
+        List.fold_left
+          (fun (h, acc) l ->
+            let str = to_string h ^ " " ^ to_string l in
+            let h' = digest_string algo str in
+            (h', h' :: acc))
+          (h, [ h ]) t
+      in
+      List.rev l
+
+let chain_id algo = function
+  | [] -> invalid_arg "chain_id: empty list"
+  | h :: t ->
+      List.fold_left
+        (fun h l ->
+          let str = to_string h ^ " " ^ to_string l in
+          let h' = digest_string algo str in
+          h')
+        h t

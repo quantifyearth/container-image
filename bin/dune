@@ -1,0 +1,12 @@
+(executable
+ (public_name oci-image)
+ (name main)
+ (libraries
+  oci-image
+  cmdliner
+  logs
+  logs.cli
+  dune-build-info
+  fmt.cli
+  logs.fmt
+  fmt.tty))

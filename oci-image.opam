@@ -8,5 +8,10 @@ depends: [
   "ocaml"   {>= "4.08.0"}
   "dune"    {>= "3.8.0"}
   "yojson"
+  "ppx_deriving_yojson"
   "digestif"
+  "base64"
+  "cmdliner"
+  "logs"
+  "dune-build-info"
 ]

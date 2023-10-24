@@ -3,6 +3,7 @@ module Descriptor = Descriptor
 module Index = Index
 module Manifest = Manifest
 module Annotation = Annotation
+module Digest = Digest
 
 type t = {
   manifest : Manifest.t;

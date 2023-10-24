@@ -8,14 +8,23 @@ type config = {
   cmd : string list; [@default []] [@key "Cmd"]
   volumes : set; [@default []] [@key "Volumes"]
   working_dir : string option; [@default None] [@key "WorkingDir"]
-  labels : string map; [@default []] [@key "Labels"]
+  labels : Annotation.t map; [@default []] [@key "Labels"]
   stop_signal : string option; [@default None] [@key "StopSignal"]
   args_escaped : bool option; [@default None] [@key "ArgsEscaped"]
+  memory : int option; [@default None] [@key "Memory"]
+  memory_swap : int option; [@default None] [@key "MemorySwap"]
+  cpu_shares : int option; [@default None] [@key "CpuShares"]
+  healthcheck : set; [@default []] [@key "HealthCheck"]
 }
 [@@deriving yojson]
 
 type rootfs = { type_ : string; [@key "type"] diff_ids : Digest.t list }
 [@@deriving yojson]
+
+let rootfs_of_yojson json =
+  match rootfs_of_yojson json with
+  | Error e -> Error e
+  | Ok t -> if t.type_ <> "layers" then Error "rootfs.type" else Ok t
 
 type history = {
   created : date_time option; [@default None]
@@ -30,12 +39,12 @@ type t = {
   created : date_time option; [@default None]
   author : string option; [@default None]
   architecture : string;
-  variant : string option; [@default None]
-  os : string;
+  os : OS.t;
   os_version : string option; [@default None] [@key "os.version"]
   os_features : string list; [@default []] [@key "os.features"]
+  variant : Arch.variant option; [@default None]
   config : config option; [@default None]
   rootfs : rootfs;
   history : history list; [@default []]
 }
-[@@deriving yojson]
+[@@deriving yojson { strict = false }]
