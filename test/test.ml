@@ -7,4 +7,5 @@ let () =
       ("descriptor", Test_descriptor.suite);
       ("index", Test_index.suite);
       ("chainID", Test_chain_id.suite);
+      ("manifest", Test_manifest.suite);
     ]

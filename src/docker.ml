@@ -41,10 +41,15 @@ let get_manifest client ~sw ~token { image; reference } =
     ]
   in
   let out media_type body =
-    match Blob.of_string ~media_type (read_all body) with
-    | Ok b -> Media_type.to_string (Blob.media_type b)
-    | Error e -> e
+    let body = read_all body in
+    match Blob.of_string ~media_type body with
+    | Ok b -> b
+    | Error e ->
+        Fmt.failwith "Docker.get_manifest: error %s (Content-Type: %s)\n%s" e
+          (Media_type.to_string media_type)
+          body
   in
+
   get client ~token ~sw ~extra_headers uri out
 
 let _get_blob client ~sw ~token ~target_file { image; _ } digest =
@@ -107,4 +112,10 @@ let get image =
   (* let root = Eio.Stdenv.cwd env in
      let target_file = Eio.Path.(root / (image ^ "." ^ digest ^ ".tar.gz")) in *)
   let manifest = get_manifest client ~sw ~token image in
-  Fmt.epr "XXX MANIFEST=%s\n%!" manifest
+  match Blob.v manifest with
+  | Docker (Image_manifest_list m) ->
+      let ds = Manifest_list.manifests m in
+      List.iter
+        (fun d -> Fmt.epr "XXX MANIFEST=%a\n%!" Digest.pp (Descriptor.digest d))
+        ds
+  | _ -> Fmt.epr "XXX TODO\n%!"

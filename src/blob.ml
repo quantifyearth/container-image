@@ -112,6 +112,8 @@ end
 type v = OCI of OCI.t | Docker of Docker.t
 type t = { media_type : Media_type.t; v : v }
 
+let v t = t.v
+
 let pp ppf t =
   match t.v with OCI t -> OCI.pp ppf t | Docker t -> Docker.pp ppf t
 
@@ -128,3 +130,19 @@ let of_string ~media_type str =
   { media_type; v }
 
 let media_type t = t.media_type
+
+let err_size e g =
+  Fmt.kstr (fun s -> Error s) "invalid size: expected %Ld, got %d" e g
+
+let of_descriptor ~get d =
+  let digest = Descriptor.digest d in
+  let expected_size = Descriptor.size d in
+  let body = get digest in
+  let got_size = String.length body in
+  if Int64.of_int got_size <> expected_size then err_size expected_size got_size
+  else
+    match Digest.validate digest body with
+    | Ok () ->
+        let media_type = Descriptor.media_type d in
+        of_string ~media_type body
+    | Error e -> Error e

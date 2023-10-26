@@ -73,6 +73,9 @@ let empty =
     artifact_type = None;
   }
 
+let size t = t.size
+let digest t = t.digest
+
 let check t =
   match t.data with
   | None -> Ok ()
@@ -80,7 +83,7 @@ let check t =
       match Base64.to_string data with
       | Error e -> Error e
       | Ok data ->
-          if Int64.to_int t.size = String.length data then
+          if t.size = Int64.of_int (String.length data) then
             Digest.validate t.digest data
           else
             Fmt.kstr

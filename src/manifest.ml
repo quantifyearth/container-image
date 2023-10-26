@@ -10,7 +10,7 @@ module OCI = struct
   type t = {
     version : v2; [@key "schemaVersion"]
     media_type : media_type; [@key "mediaType"]
-    artifact_type : string option; [@key "artifactType"]
+    artifact_type : string option; [@key "artifactType"] [@default None]
     config : Descriptor.t;
     layers : Descriptor.t list;
     subject : Descriptor.t option; [@default None]

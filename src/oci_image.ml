@@ -1,9 +1,10 @@
 module Config = Config
 module Descriptor = Descriptor
 module Index = Index
-module Manifest = Manifest
 module Annotation = Annotation
 module Digest = Digest
+module Manifest = Manifest
+module Manifest_list = Manifest_list
 
 type oci = {
   manifest : Manifest.OCI.t;
