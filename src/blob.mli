@@ -25,6 +25,4 @@ val pp : t Fmt.t
 val of_string : media_type:Media_type.t -> string -> (t, string) result
 val media_type : t -> Media_type.t
 val v : t -> v
-
-val of_descriptor :
-  get:(Digest.t -> string) -> Descriptor.t -> (t, string) result
+val of_descriptor : Descriptor.t -> string -> (t, string) result

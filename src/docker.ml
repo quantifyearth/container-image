@@ -31,6 +31,18 @@ let get client ~sw ?token ?(extra_headers = []) uri out =
 
 type image = { image : string; reference : string }
 
+let get_manifest_raw client ~sw ~token { image; reference } =
+  let uri = uri "%s/v2/%s/manifests/%s" registry_base image reference in
+  let extra_headers =
+    [
+      ("Accept", "application/vnd.docker.distribution.manifest.v2+json");
+      ("Accept", "application/vnd.docker.distribution.manifest.list.v2+json");
+      ("Accept", "application/vnd.docker.distribution.manifest.v1+json");
+    ]
+  in
+  let out _ body = read_all body in
+  get client ~token ~sw ~extra_headers uri out
+
 let get_manifest client ~sw ~token { image; reference } =
   let uri = uri "%s/v2/%s/manifests/%s" registry_base image reference in
   let extra_headers =
@@ -49,15 +61,21 @@ let get_manifest client ~sw ~token { image; reference } =
           (Media_type.to_string media_type)
           body
   in
-
   get client ~token ~sw ~extra_headers uri out
 
-let _get_blob client ~sw ~token ~target_file { image; _ } digest =
+let get_blob client ~sw ~token image d =
+  let digest = Digest.to_string (Descriptor.digest d) in
   let uri = uri "%s/v2/%s/blobs/%s" registry_base image digest in
-  let out _ body =
-    (* TODO: do something with the media-type *)
-    let fd = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) target_file in
-    Eio.Flow.copy body fd
+  let out media_type body =
+    let body = read_all body in
+    match Blob.of_string ~media_type body with
+    (* let fd = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) target_file in
+       Eio.Flow.copy body fd *)
+    | Ok b -> b
+    | Error e ->
+        Fmt.failwith "Docker.get_blob: error %s (Content-Type: %s)\n%s" e
+          (Media_type.to_string media_type)
+          body
   in
   get client ~sw ~token uri out
 
@@ -109,13 +127,40 @@ let get image =
   Eio.Switch.run @@ fun sw ->
   let token = Auth.get_token client ~sw image in
   Fmt.epr "XXX TOKEN=%s\n%!" token;
-  (* let root = Eio.Stdenv.cwd env in
-     let target_file = Eio.Path.(root / (image ^ "." ^ digest ^ ".tar.gz")) in *)
-  let manifest = get_manifest client ~sw ~token image in
+  (*
+    let root = Eio.Stdenv.cwd env in
+  let filename = image_to_file image.image in *)
+  let get_blob d =
+    (*    let target_file = Eio.Path.(root / (filename ^ "." ^ digest ^ ".tar.gz")) in *)
+    get_blob client ~sw ~token (* ~target_file *) image.image d
+  in
+  let get_manifest reference =
+    get_manifest client ~sw ~token { image with reference }
+  in
+  let get_manifest_raw reference =
+    get_manifest_raw client ~sw ~token { image with reference }
+  in
+  let manifest = get_manifest image.reference in
   match Blob.v manifest with
   | Docker (Image_manifest_list m) ->
       let ds = Manifest_list.manifests m in
       List.iter
-        (fun d -> Fmt.epr "XXX MANIFEST=%a\n%!" Digest.pp (Descriptor.digest d))
+        (fun d ->
+          let digest = Digest.to_string (Descriptor.digest d) in
+          Fmt.epr "XXX MANIFEST=%s\n%!" digest;
+          let body = get_manifest_raw digest in
+          match Blob.of_descriptor d body with
+          | Ok b -> (
+              match Blob.v b with
+              | Docker (Image_manifest m) ->
+                  Fmt.epr "XXX OK %a\n%!" Manifest.Docker.pp m;
+                  let config = Manifest.Docker.config m in
+                  let layers = Manifest.Docker.layers m in
+                  let config = get_blob config in
+                  let layers = List.map get_blob layers in
+                  Fmt.epr "XXX CONFIG=%a\n%!" Blob.pp config;
+                  List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" Blob.pp l) layers
+              | _ -> Fmt.epr "XXX ERROR\n%!")
+          | Error _ -> Fmt.epr "XXX WRONG\n%!")
         ds
   | _ -> Fmt.epr "XXX TODO\n%!"

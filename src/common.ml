@@ -85,7 +85,7 @@ let z_of_yojson n =
 
 let ( let* ) x f = match x with Ok x -> f x | Error e -> Error e
 let ( let+ ) x f = match x with Ok x -> Ok (f x) | Error e -> Error e
-let pp_json = Yojson.Safe.pp
+let pp_json ppf t = Fmt.string ppf (Yojson.Safe.to_string t)
 
 let ( / ) x y =
   try Ok (Yojson.Safe.Util.member y x)

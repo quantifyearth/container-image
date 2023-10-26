@@ -134,10 +134,9 @@ let media_type t = t.media_type
 let err_size e g =
   Fmt.kstr (fun s -> Error s) "invalid size: expected %Ld, got %d" e g
 
-let of_descriptor ~get d =
+let of_descriptor d body =
   let digest = Descriptor.digest d in
   let expected_size = Descriptor.size d in
-  let body = get digest in
   let got_size = String.length body in
   if Int64.of_int got_size <> expected_size then err_size expected_size got_size
   else

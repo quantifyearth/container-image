@@ -18,6 +18,7 @@ module OCI = struct
   }
   [@@deriving yojson]
 
+  let pp ppf t = pp_json ppf (to_yojson t)
   let media_type _ = Media_type.OCI.Image_manifest
 
   exception Break of string
@@ -68,5 +69,8 @@ module Docker = struct
   }
   [@@deriving yojson]
 
+  let layers t = t.layers
+  let config t = t.config
+  let pp ppf t = pp_json ppf (to_yojson t)
   let media_type _ = Media_type.Docker.Image_manifest
 end
