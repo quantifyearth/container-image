@@ -1,6 +1,17 @@
 (library
  (public_name oci-image)
  (name oci_image)
- (libraries fmt digestif yojson astring ptime uri base64)
+ (libraries
+  fmt
+  digestif
+  yojson
+  astring
+  ptime
+  uri
+  base64
+  cohttp-eio
+  eio_main
+  tls-eio
+  mirage-crypto-rng-eio)
  (preprocess
   (pps ppx_deriving_yojson)))

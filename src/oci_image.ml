@@ -5,14 +5,13 @@ module Manifest = Manifest
 module Annotation = Annotation
 module Digest = Digest
 
-type t = {
-  manifest : Manifest.t;
+type oci = {
+  manifest : Manifest.OCI.t;
   index : Index.t option;
   layers : Layer.t list;
   config : Config.t;
 }
 
-let manifest t = t.manifest
-let index t = t.index
-let layers t = t.layers
-let config t = t.config
+type docker = { manigest_list : Manifest_list.t }
+
+let get = Docker.get

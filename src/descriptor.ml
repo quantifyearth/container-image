@@ -61,7 +61,7 @@ let media_type t = t.media_type
 
 let empty =
   {
-    media_type = Empty;
+    media_type = OCI Empty;
     size = 2L;
     digest =
       Digest.sha256

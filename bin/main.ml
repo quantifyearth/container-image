@@ -39,7 +39,8 @@ let setup =
     $ Logs_cli.level ())
 
 let run () all_tags disable_content_trust platform image =
-  ignore (all_tags, disable_content_trust, platform, image)
+  ignore (all_tags, disable_content_trust, platform, image);
+  Oci_image.get image
 
 let version =
   match Build_info.V1.version () with

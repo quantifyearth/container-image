@@ -2,7 +2,7 @@ open Common
 
 type media_type = Index
 
-let media_type_s = Media_type.to_string Image_index
+let media_type_s = Media_type.to_string (OCI Image_index)
 let media_type_of_yojson = const_of_yojson Index media_type_s
 let media_type_to_yojson Index = `String media_type_s
 

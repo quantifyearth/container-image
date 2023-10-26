@@ -82,3 +82,16 @@ let z_of_yojson n =
   match z_of_yojson n with
   | Error e -> Error e
   | Ok n -> if n < 0L then Error "negative int" else Ok n
+
+let ( let* ) x f = match x with Ok x -> f x | Error e -> Error e
+let ( let+ ) x f = match x with Ok x -> Ok (f x) | Error e -> Error e
+let pp_json = Yojson.Safe.pp
+
+let ( / ) x y =
+  try Ok (Yojson.Safe.Util.member y x)
+  with Yojson.Safe.Util.Type_error (e, _) -> Error e
+
+let json_of_string str =
+  match Yojson.Safe.from_string str with
+  | json -> Ok json
+  | exception Yojson.Json_error str -> Error str
