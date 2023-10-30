@@ -1,10 +1,12 @@
+open Container_image_spec
+
 let of_json str =
   match Yojson.Safe.from_string str with
   | exception Yojson.Json_error _ ->
       Fmt.epr "invalid JSON\n%!";
       None
   | json -> (
-      match Oci_image.Descriptor.of_yojson json with
+      match Descriptor.of_yojson json with
       | Ok x -> Some x
       | Error e ->
           Fmt.epr "JSON error: %s\n%!" e;

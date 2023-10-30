@@ -1,0 +1,13 @@
+(library
+ (public_name container-image.spec)
+ (name container_image_spec)
+ (libraries
+  fmt
+  digestif
+  yojson
+  astring
+  ptime
+  uri
+  base64)
+ (preprocess
+  (pps ppx_deriving_yojson)))

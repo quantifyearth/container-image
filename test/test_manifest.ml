@@ -1,3 +1,6 @@
+open Alcotest
+open Container_image_spec
+
 let of_json of_yojson str =
   match Yojson.Safe.from_string str with
   | exception Yojson.Json_error _ ->
@@ -10,7 +13,7 @@ let of_json of_yojson str =
           Fmt.epr "JSON error: %s\n%!" e;
           None)
 
-let oci_of_json = of_json Oci_image.Manifest.OCI.of_yojson
+let oci_of_json = of_json Manifest.OCI.of_yojson
 
 let test_invalid_media_type () =
   let json =
@@ -391,27 +394,26 @@ let test_docker () =
 }
   |}
   in
-  match of_json Oci_image.Manifest_list.of_yojson json with
+  match of_json Manifest_list.of_yojson json with
   | Some _ -> ()
   | None -> Alcotest.fail "invalide docker flat manifest"
 
 let suite =
-  Alcotest.
-    [
-      test_case "test_invalid_media_type" `Quick test_invalid_media_type;
-      test_case "test_invalid_config_size" `Quick test_invalid_config_size;
-      test_case "test_invalid_layers_size" `Quick test_invalid_layers_size;
-      test_case "test_valid_manifest_with_optional_fields" `Quick
-        test_valid_manifest_with_optional_fields;
-      test_case "test_valid_manifest_with_required_fields" `Quick
-        test_valid_manifest_with_required_fields;
-      test_case "test_invalid_empty_layer" `Quick test_invalid_empty_layer;
-      test_case "test_algorithm_bounds" `Quick test_algorithm_bounds;
-      test_case "test_subject" `Quick test_subject;
-      test_case "test_invalid_subject" `Quick test_invalid_subject;
-      test_case "test_invalid_algorithm_bounds" `Quick
-        test_invalid_algorithm_bounds;
-      test_case "test_config" `Quick test_config;
-      test_case "test_empty_config" `Quick test_empty_config;
-      test_case "docker manifest list" `Quick test_docker;
-    ]
+  [
+    test_case "test_invalid_media_type" `Quick test_invalid_media_type;
+    test_case "test_invalid_config_size" `Quick test_invalid_config_size;
+    test_case "test_invalid_layers_size" `Quick test_invalid_layers_size;
+    test_case "test_valid_manifest_with_optional_fields" `Quick
+      test_valid_manifest_with_optional_fields;
+    test_case "test_valid_manifest_with_required_fields" `Quick
+      test_valid_manifest_with_required_fields;
+    test_case "test_invalid_empty_layer" `Quick test_invalid_empty_layer;
+    test_case "test_algorithm_bounds" `Quick test_algorithm_bounds;
+    test_case "test_subject" `Quick test_subject;
+    test_case "test_invalid_subject" `Quick test_invalid_subject;
+    test_case "test_invalid_algorithm_bounds" `Quick
+      test_invalid_algorithm_bounds;
+    test_case "test_config" `Quick test_config;
+    test_case "test_empty_config" `Quick test_empty_config;
+    test_case "docker manifest list" `Quick test_docker;
+  ]

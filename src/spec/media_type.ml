@@ -1,4 +1,5 @@
 open Common
+module Content_type = Content_type
 
 module OCI = struct
   type t =
@@ -94,14 +95,17 @@ let of_string str =
   match Docker.of_string str with
   | Some t -> Ok (Docker t)
   | None -> (
-      match OCI.of_string str with Ok t -> Ok (OCI t) | Error e -> Error e)
+      match OCI.of_string str with
+      | Ok t -> Ok (OCI t)
+      | Error e -> Error (`Msg e))
 
 let to_string = function
   | Docker t -> Docker.to_string t
   | OCI t -> OCI.to_string t
 
 let of_yojson = function
-  | `String s -> of_string s
+  | `String s -> (
+      match of_string s with Ok t -> Ok t | Error (`Msg e) -> Error e)
   | _ -> Error "invalid mediaType"
 
 let to_yojson t = `String (to_string t)

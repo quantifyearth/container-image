@@ -1,8 +1,29 @@
+open Container_image_spec
+
 let registry_base = "https://registry-1.docker.io"
 let auth_base = "https://auth.docker.io"
 let auth_service = "registry.docker.io"
 let read_all flow = Eio.Buf_read.(parse_exn take_all) ~max_size:max_int flow
 let uri fmt = Fmt.kstr Uri.of_string fmt
+let parent (c, p) = (c, Filename.dirname p)
+
+let exists ~sw file =
+  try
+    let fd = Eio.Path.open_out ~sw ~create:`Never file in
+    Eio.Flow.close fd;
+    true
+  with
+  | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _)
+  | Eio.Io (Eio.Fs.E (Eio.Fs.Already_exists _), _)
+  ->
+    false
+
+let rec mkdir_rec ~perm dir =
+  try Eio.Path.mkdir ~perm dir with
+  | Eio.Io (Eio.Fs.E (Eio.Fs.Already_exists _), _) -> ()
+  | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) ->
+      mkdir_rec ~perm (parent dir);
+      Eio.Path.mkdir ~perm dir
 
 let rec get client ~sw ?token ?(extra_headers = []) uri out =
   Logs.debug (fun l -> l "GET %a\n%!" Uri.pp uri);
@@ -19,7 +40,7 @@ let rec get client ~sw ?token ?(extra_headers = []) uri out =
     | Some m -> (
         match Media_type.of_string m with
         | Ok m -> m
-        | Error e -> Fmt.failwith "invalid content-type: %s - %s" m e)
+        | Error (`Msg e) -> Fmt.failwith "invalid content-type: %s - %s" m e)
     | None -> failwith "missing content-type"
   in
   match Cohttp.Response.status resp with
@@ -56,27 +77,6 @@ let get_manifest client ~sw ~token { image; reference } =
           body
   in
   get client ~token ~sw ~extra_headers uri out
-
-let parent (c, p) = (c, Filename.dirname p)
-
-let exists ~sw file =
-  try
-    let fd = Eio.Path.open_out ~sw ~create:`Never file in
-    Eio.Flow.close fd;
-    true
-  with
-  | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _)
-  | Eio.Io (Eio.Fs.E (Eio.Fs.Already_exists _), _)
-  ->
-    false
-
-let rec mkdir_rec ~perm dir =
-  Fmt.epr "XXX mkdir_rec %s\n%!" (snd dir);
-  try Eio.Path.mkdir ~perm dir with
-  | Eio.Io (Eio.Fs.E (Eio.Fs.Already_exists _), _) -> ()
-  | Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) ->
-      mkdir_rec ~perm (parent dir);
-      Eio.Path.mkdir ~perm dir
 
 let get_blob client ~sw ~token ~root image d =
   let digest = Descriptor.digest d in
@@ -120,33 +120,17 @@ let get_blob client ~sw ~token ~root image d =
   in
   get client ~sw ~token uri out
 
-module Auth = struct
-  type t = { token : string } [@@deriving yojson { strict = false }]
-
-  let get_token client ~sw { image; _ } =
-    let uri =
-      uri "%s/token?service=%s&scope=repository:%s:pull" auth_base auth_service
-        image
-    in
-    let out _ body =
-      match of_yojson (Yojson.Safe.from_string (read_all body)) with
-      | Ok t -> t.token
-      | Error e -> Fmt.failwith "@[<v2>%s parsing errors: %s@]" auth_base e
-    in
-    get client ~sw uri out
-end
-
-let null_auth ?ip:_ ~host:_ _ =
-  Ok None (* Warning: use a real authenticator in your code! *)
-
-let https ~authenticator =
-  let tls_config = Tls.Config.client ~authenticator () in
-  fun uri raw ->
-    let host =
-      Uri.host uri
-      |> Option.map (fun x -> Domain_name.(host_exn (of_string_exn x)))
-    in
-    Tls_eio.client_of_flow ?host tls_config raw
+let get_token client ~sw { image; _ } =
+  let uri =
+    uri "%s/token?service=%s&scope=repository:%s:pull" auth_base auth_service
+      image
+  in
+  let out _ body =
+    match Auth.of_yojson (Yojson.Safe.from_string (read_all body)) with
+    | Ok t -> t.token
+    | Error e -> Fmt.failwith "@[<v2>%s parsing errors: %s@]" auth_base e
+  in
+  get client ~sw uri out
 
 let split_image str =
   match String.split_on_char ':' str with
@@ -161,18 +145,11 @@ let pp ppf = function
 
 let image_to_file str = String.map (function '/' -> '-' | c -> c) str
 
-let get image =
+let fetch ~root ~client image =
   let image = split_image image in
-  Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
-  let client =
-    Cohttp_eio.Client.make
-      ~https:(Some (https ~authenticator:null_auth))
-      (Eio.Stdenv.net env)
-  in
+  let root = Eio.Path.(root / image_to_file image.image) in
   Eio.Switch.run @@ fun sw ->
-  let root = Eio.Path.(Eio.Stdenv.cwd env / image_to_file image.image) in
-  let token = Auth.get_token client ~sw image in
+  let token = get_token client ~sw image in
   let get_blob d = get_blob client ~sw ~token ~root image.image d in
   let get_manifest reference =
     get_manifest client ~sw ~token { image with reference }

@@ -1,0 +1,37 @@
+opam-version: "2.0"
+maintainer: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
+authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
+homepage: "https://github.com/samoht/sweet"
+bug-reports: "https://github.com/samoht/sweet/issues"
+license: "ISC"
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+depends: [
+  "ocaml"   {>= "5.00.0"}
+  "dune"    {>= "3.8.0"}
+  "yojson"
+  "ppx_deriving_yojson"
+  "digestif"
+  "base64"
+  "cmdliner"
+  "logs"
+  "dune-build-info"
+  "mirage-crypto-rng-eio"
+  "cohttp"
+  "cohttp-eio"
+  "tls-eio"
+  "eio" {>= "0.12"}
+  "eio_main"
+  "alcotest" {with-test}
+]
+
+pin-depends: [
+  [ "cohttp-eio.dev" "git+https://github.com/mirage/ocaml-cohttp.git#master"]
+  [ "cohttp.dev"     "git+https://github.com/mirage/ocaml-cohttp.git#master"]
+  [ "http.dev"       "git+https://github.com/mirage/ocaml-cohttp.git#master"]
+]
+
+synopsis: "Tools to manage OCI and Docker images"

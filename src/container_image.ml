@@ -1,0 +1,2 @@
+
+let fetch = Docker.fetch

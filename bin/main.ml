@@ -38,9 +38,29 @@ let setup =
     $ style_renderer
     $ Logs_cli.level ())
 
+let null_auth ?ip:_ ~host:_ _ =
+  Ok None (* Warning: use a real authenticator in your code! *)
+
+let https ~authenticator =
+  let tls_config = Tls.Config.client ~authenticator () in
+  fun uri raw ->
+    let host =
+      Uri.host uri
+      |> Option.map (fun x -> Domain_name.(host_exn (of_string_exn x)))
+    in
+    Tls_eio.client_of_flow ?host tls_config raw
+
 let run () all_tags disable_content_trust platform image =
   ignore (all_tags, disable_content_trust, platform, image);
-  Oci_image.get image
+  Eio_main.run @@ fun env ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
+  let client =
+    Cohttp_eio.Client.make
+      ~https:(Some (https ~authenticator:null_auth))
+      (Eio.Stdenv.net env)
+  in
+  let root = Eio.Stdenv.cwd env in
+  Container_image.fetch ~client ~root image
 
 let version =
   match Build_info.V1.version () with

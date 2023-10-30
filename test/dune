@@ -1,3 +1,3 @@
 (test
  (name test)
- (libraries oci-image alcotest))
+ (libraries container-image alcotest))

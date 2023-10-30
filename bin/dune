@@ -1,8 +1,8 @@
 (executable
- (public_name oci-image)
+ (public_name container-image)
  (name main)
  (libraries
-  oci-image
+  container-image
   cmdliner
   logs
   logs.cli

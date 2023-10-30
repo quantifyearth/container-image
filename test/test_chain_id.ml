@@ -1,5 +1,5 @@
 open Alcotest
-open Oci_image
+open Container_image_spec
 
 let digest str =
   Digest.unsafe_v SHA256 Digestif.SHA256.(to_hex (digest_string str))

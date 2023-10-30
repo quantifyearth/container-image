@@ -1,17 +1,9 @@
 (library
- (public_name oci-image)
- (name oci_image)
+ (public_name container-image)
+ (name container_image)
  (libraries
-  fmt
-  digestif
-  yojson
-  astring
-  ptime
-  uri
-  base64
+  container-image.spec
   cohttp-eio
   eio_main
   tls-eio
-  mirage-crypto-rng-eio)
- (preprocess
-  (pps ppx_deriving_yojson)))
+  mirage-crypto-rng-eio))
