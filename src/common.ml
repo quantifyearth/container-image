@@ -20,6 +20,7 @@ let date_time_to_yojson : date_time -> Yojson.Safe.t =
 type 'a map = (string * 'a) list
 
 let map_of_yojson f : Yojson.Safe.t -> ('a map, string) result = function
+  | `Null -> Ok []
   | `Assoc a -> (
       try
         let l =

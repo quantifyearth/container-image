@@ -6,7 +6,7 @@ let of_json str =
       Fmt.epr "invalid JSON\n%!";
       None
   | json -> (
-      match Oci_image.Config.of_yojson json with
+      match Oci_image.Config.OCI.of_yojson json with
       | Ok x -> Some x
       | Error e ->
           Fmt.epr "JSON error: %s\n%!" e;

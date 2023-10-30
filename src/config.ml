@@ -53,24 +53,24 @@ end
 
 module Docker = struct
   type config = {
-    hostname : string; [@key "Hostname"]
-    domain_name : string; [@key "Domainname"]
-    user : string option; [@key "User"]
-    attach_stdin : bool; [@key "AttachStdin"]
-    attach_stdout : bool; [@key "AttachStdout"]
-    attach_stderr : bool; [@key "AttachStderr"]
+    hostname : string option; [@key "Hostname"] [@default None]
+    domain_name : string option; [@key "Domainname"] [@default None]
+    user : string option; [@key "User"] [@default None]
+    attach_stdin : bool; [@key "AttachStdin"] [@default false]
+    attach_stdout : bool; [@key "AttachStdout"] [@default false]
+    attach_stderr : bool; [@key "AttachStderr"] [@default false]
     exposed_ports : set; [@key "ExposedPorts"] [@default []]
-    tty : bool; [@key "Tty"]
-    open_stdin : bool; [@key "OpenStdin"]
-    stdin_once : bool; [@key "StdinOnce"]
+    tty : bool; [@key "Tty"] [@default false]
+    open_stdin : bool; [@key "OpenStdin"] [@default false]
+    stdin_once : bool; [@key "StdinOnce"] [@default false]
     env : env list option; [@key "Env"]
-    cmd : string list option; [@key "Cmd"]
+    cmd : string list; [@key "Cmd"] [@default []]
     healthcheck : set; [@key "HealthCheck"] [@default []]
     args_escaped : bool option; [@key "ArgsEscaped"] [@default None]
-    image : string; [@key "Image"]
-    volumes : set option; [@key "Volumes"]
+    image : string option; [@key "Image"] [@default None]
+    volumes : set; [@key "Volumes"] [@default []]
     working_dir : string; [@key "WorkingDir"]
-    entrypoint : string list option; [@key "Entrypoint"]
+    entrypoint : string list option; [@key "Entrypoint"] [@default None]
     network_disabled : bool; [@key "NetworkDisabled"] [@default false]
     mac_address : string option; [@key "MacAddress"] [@default None]
     on_build : string list option; [@key "OnBuild"]
@@ -118,4 +118,10 @@ module Docker = struct
     history : history list; [@default []]
   }
   [@@deriving yojson]
+
+  let pp ppf t = pp_json ppf (to_yojson t)
+
+  let of_string str =
+    let* json = json_of_string str in
+    of_yojson json
 end

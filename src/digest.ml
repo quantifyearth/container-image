@@ -66,6 +66,7 @@ let v a e =
   | Error e -> Error e
 
 let unsafe_v a e = { algorithm = a; encoded = e }
+let encoded_hash d = d.encoded
 
 let of_string str =
   match String.cut ~sep:":" str with

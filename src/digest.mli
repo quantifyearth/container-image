@@ -13,3 +13,4 @@ val to_string : t -> string
 val equal : t -> t -> bool
 val chain : algorithm -> t list -> t list
 val chain_id : algorithm -> t list -> t
+val encoded_hash : t -> string
