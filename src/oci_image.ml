@@ -10,7 +10,7 @@ type oci = {
   manifest : Manifest.OCI.t;
   index : Index.t option;
   layers : Layer.t list;
-  config : Config.t;
+  config : Config.OCI.t;
 }
 
 type docker = { manigest_list : Manifest_list.t }

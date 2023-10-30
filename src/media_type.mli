@@ -31,6 +31,7 @@ end
 
 type t = OCI of OCI.t | Docker of Docker.t [@@deriving yojson]
 
+val pp : t Fmt.t
 val to_string : t -> string
 val of_string : string -> (t, string) result
 val guess : string -> t option

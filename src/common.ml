@@ -1,5 +1,10 @@
 open Astring
 
+exception Break of string
+
+let error fmt = Fmt.kstr (fun s -> Error s) fmt
+let pp_json ppf t = Fmt.string ppf (Yojson.Safe.to_string t)
+
 type date_time = Ptime.t * Ptime.tz_offset_s option
 
 let date_time_of_yojson : Yojson.Safe.t -> (date_time, string) result = function
@@ -14,8 +19,6 @@ let date_time_to_yojson : date_time -> Yojson.Safe.t =
 
 type 'a map = (string * 'a) list
 
-exception Break of string
-
 let map_of_yojson f : Yojson.Safe.t -> ('a map, string) result = function
   | `Assoc a -> (
       try
@@ -29,7 +32,7 @@ let map_of_yojson f : Yojson.Safe.t -> ('a map, string) result = function
         in
         Ok (List.rev l)
       with Break e -> Error e)
-  | _ -> Error "invalid JSON object"
+  | j -> error "expecting an object, got %a" pp_json j
 
 let map_to_yojson f : 'a map -> Yojson.Safe.t =
  fun m ->
@@ -66,13 +69,13 @@ type v2 = V2
 
 let v2_of_yojson = function
   | `Int 2 -> Ok V2
-  | _ -> Fmt.kstr (fun s -> Error s) "expecting the constant 2"
+  | _ -> error "expecting the constant 2"
 
 let v2_to_yojson V2 = `Int 2
 
 let const_of_yojson const n = function
   | `String s when n = s -> Ok const
-  | _ -> Fmt.kstr (fun s -> Error s) "expecting the constant %S" n
+  | _ -> error "expecting the constant %S" n
 
 (* TODO write a proper parserfor RFC 6838 *)
 type rfc_6838 = string [@@deriving yojson]
@@ -85,7 +88,6 @@ let z_of_yojson n =
 
 let ( let* ) x f = match x with Ok x -> f x | Error e -> Error e
 let ( let+ ) x f = match x with Ok x -> Ok (f x) | Error e -> Error e
-let pp_json ppf t = Fmt.string ppf (Yojson.Safe.to_string t)
 
 let ( / ) x y =
   try Ok (Yojson.Safe.Util.member y x)

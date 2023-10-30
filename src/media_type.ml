@@ -118,3 +118,5 @@ let guess str =
         in
         match m with Ok r -> Some r | Error _ -> None)
     | _ -> None
+
+let pp = Fmt.of_to_string to_string

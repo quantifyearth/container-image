@@ -7,7 +7,7 @@ module OCI = struct
     | Layout_header of Layout.t
     | Image_index of Index.t
     | Image_manifest of Manifest.OCI.t
-    | Image_config of Config.t
+    | Image_config of Config.OCI.t
     | Raw of string
 
   let pp ppf = function
@@ -16,8 +16,8 @@ module OCI = struct
     | Layout_header h -> pp_json ppf (Layout.to_yojson h)
     | Image_index i -> pp_json ppf (Index.to_yojson i)
     | Image_manifest m -> pp_json ppf (Manifest.OCI.to_yojson m)
-    | Image_config c -> pp_json ppf (Config.to_yojson c)
-    | Raw s -> Fmt.string ppf s
+    | Image_config c -> pp_json ppf (Config.OCI.to_yojson c)
+    | Raw _ -> Fmt.string ppf "<raw>"
 
   let descriptor str =
     let* json = json_of_string str in
@@ -41,7 +41,7 @@ module OCI = struct
 
   let image_config str =
     let* json = json_of_string str in
-    let+ c = Config.of_yojson json in
+    let+ c = Config.OCI.of_yojson json in
     Image_config c
 
   let layer str = Ok (Raw str) (* TODO *)
@@ -67,16 +67,16 @@ module Docker = struct
   type t =
     | Image_manifest of Manifest.Docker.t
     | Image_manifest_list of Manifest_list.t
-    | Image_config of Config.t
+    | Image_config of Config.Docker.t
     | Plugin_config of Yojson.Safe.t
     | Raw of string
 
   let pp ppf = function
     | Image_manifest m -> pp_json ppf (Manifest.Docker.to_yojson m)
     | Image_manifest_list l -> pp_json ppf (Manifest_list.to_yojson l)
-    | Image_config c -> pp_json ppf (Config.to_yojson c)
+    | Image_config c -> pp_json ppf (Config.Docker.to_yojson c)
     | Plugin_config j -> pp_json ppf j
-    | Raw s -> Fmt.string ppf s
+    | Raw _ -> Fmt.string ppf "<raw>"
 
   let image_manifest str =
     let* json = json_of_string str in
@@ -90,7 +90,7 @@ module Docker = struct
 
   let image_config str =
     let* json = json_of_string str in
-    let+ c = Config.of_yojson json in
+    let+ c = Config.Docker.of_yojson json in
     Image_config c
 
   let plugin str =

@@ -5,7 +5,7 @@ module OCI : sig
     | Layout_header of Layout.t
     | Image_index of Index.t
     | Image_manifest of Manifest.OCI.t
-    | Image_config of Config.t
+    | Image_config of Config.OCI.t
     | Raw of string
 end
 
@@ -13,7 +13,7 @@ module Docker : sig
   type t =
     | Image_manifest of Manifest.Docker.t
     | Image_manifest_list of Manifest_list.t
-    | Image_config of Config.t
+    | Image_config of Config.Docker.t
     | Plugin_config of Yojson.Safe.t
     | Raw of string
 end

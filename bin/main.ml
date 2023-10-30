@@ -53,4 +53,7 @@ let cmd =
     Term.(
       const run $ setup $ all_tags $ disable_content_trust $ platform $ image)
 
-let () = exit (Cmd.eval cmd)
+let () =
+  match Cmd.eval ~catch:false cmd with
+  | exception Failure s -> Fmt.pr "%s\n%!" s
+  | i -> exit i

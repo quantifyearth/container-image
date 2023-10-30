@@ -4,7 +4,7 @@ let auth_service = "registry.docker.io"
 let read_all flow = Eio.Buf_read.(parse_exn take_all) ~max_size:max_int flow
 let uri fmt = Fmt.kstr Uri.of_string fmt
 
-let get client ~sw ?token ?(extra_headers = []) uri out =
+let rec get client ~sw ?token ?(extra_headers = []) uri out =
   Logs.debug (fun l -> l "GET %a\n%!" Uri.pp uri);
   let headers =
     Cohttp.Header.of_list
@@ -24,6 +24,12 @@ let get client ~sw ?token ?(extra_headers = []) uri out =
   in
   match Cohttp.Response.status resp with
   | `OK -> out media_type body
+  | `Temporary_redirect -> (
+      match Cohttp.Header.get (Cohttp.Response.headers resp) "location" with
+      | Some new_url ->
+          let new_uri = Uri.of_string new_url in
+          get client ~sw ?token ~extra_headers new_uri out
+      | None -> Fmt.failwith "Redirect without location!")
   | err ->
       Fmt.failwith "@[<v2>%a error: %s@,%s@]" Uri.pp uri
         (Cohttp.Code.string_of_status err)
@@ -66,7 +72,9 @@ let get_manifest client ~sw ~token { image; reference } =
 let get_blob client ~sw ~token image d =
   let digest = Digest.to_string (Descriptor.digest d) in
   let uri = uri "%s/v2/%s/blobs/%s" registry_base image digest in
-  let out media_type body =
+  let out _media_type body =
+    let media_type = Descriptor.media_type d in
+    Fmt.epr "XXX get_blob %a\n%!" Media_type.pp media_type;
     let body = read_all body in
     match Blob.of_string ~media_type body with
     (* let fd = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) target_file in
