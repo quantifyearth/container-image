@@ -1,3 +1,5 @@
+open Common
+
 type t =
   | X386
   | Xamd64
@@ -31,29 +33,24 @@ let to_string = function
   | S390x -> "s390x"
 
 let of_string = function
-  | "386" -> Some X386
-  | "amd64" -> Some Xamd64
-  | "arm" -> Some Arm
-  | "arm64" -> Some Arm64
-  | "wasm" -> Some Wasm
-  | "loong64" -> Some Loong64
-  | "mips" -> Some Mips
-  | "mipsle" -> Some Mipsle
-  | "mips64" -> Some Mips64
-  | "mips64le" -> Some Mips64le
-  | "ppc64" -> Some Ppc64
-  | "ppc64le" -> Some Ppc64le
-  | "riscv64" -> Some Riscv64
-  | "s390x" -> Some S390x
-  | _ -> None
+  | "386" -> Ok X386
+  | "amd64" -> Ok Xamd64
+  | "arm" -> Ok Arm
+  | "arm64" -> Ok Arm64
+  | "wasm" -> Ok Wasm
+  | "loong64" -> Ok Loong64
+  | "mips" -> Ok Mips
+  | "mipsle" -> Ok Mipsle
+  | "mips64" -> Ok Mips64
+  | "mips64le" -> Ok Mips64le
+  | "ppc64" -> Ok Ppc64
+  | "ppc64le" -> Ok Ppc64le
+  | "riscv64" -> Ok Riscv64
+  | "s390x" -> Ok S390x
+  | s -> error_msg "Arch.of_string: invalid string (%S)" s
 
 let to_yojson a = `String (to_string a)
-
-let of_yojson = function
-  | `String s -> (
-      match of_string s with None -> Error "arch" | Some a -> Ok a)
-  | _ -> Error "arch"
-
+let of_yojson = function `String s -> unwrap (of_string s) | _ -> Error "arch"
 let pp = Fmt.of_to_string to_string
 
 type variant = V6 | V7 | V8
@@ -61,16 +58,15 @@ type variant = V6 | V7 | V8
 let variant_to_string = function V6 -> "v6" | V7 -> "v7" | V8 -> "v8"
 
 let variant_of_string = function
-  | "v6" -> Some V6
-  | "v7" -> Some V7
-  | "v8" -> Some V8
-  | _ -> None
+  | "v6" -> Ok V6
+  | "v7" -> Ok V7
+  | "v8" -> Ok V8
+  | s -> error_msg "Arch.variant_of_string: invalid string (%S)" s
 
 let variant_to_yojson v = `String (variant_to_string v)
 
 let variant_of_yojson = function
-  | `String s -> (
-      match variant_of_string s with None -> Error "variant" | Some v -> Ok v)
+  | `String s -> unwrap (variant_of_string s)
   | _ -> Error "variant"
 
 let pp_variant = Fmt.of_to_string variant_to_string

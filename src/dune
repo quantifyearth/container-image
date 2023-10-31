@@ -3,6 +3,7 @@
  (name container_image)
  (libraries
   container-image.spec
+  progress
   cohttp-eio
   eio_main
   tls-eio

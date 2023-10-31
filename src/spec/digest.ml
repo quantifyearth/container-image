@@ -1,3 +1,4 @@
+open Common
 open Astring
 
 type algorithm = SHA256 | SHA512 | Unregistered of string list
@@ -10,7 +11,7 @@ exception Break of string
 let break fmt = Fmt.kstr (fun s -> raise (Break s)) fmt
 
 let algorithm_of_string = function
-  | "" -> Error "digest"
+  | "" -> error_msg "Digest.algorithm_of_string: error - empty digest"
   | "sha256" -> Ok SHA256
   | "sha512" -> Ok SHA512
   | s -> (
@@ -30,7 +31,7 @@ let algorithm_of_string = function
               s)
           l;
         Ok (Unregistered l)
-      with Break e -> Error e)
+      with Break e -> error_msg "Digest.algorithm_of_string: error - %s" e)
 
 let string_of_algorithm = function
   | SHA256 -> "sha256"
@@ -39,26 +40,26 @@ let string_of_algorithm = function
 
 let assert_hexa = function
   | 'a' .. 'f' | '0' .. '9' -> ()
-  | _ -> break "encoded"
+  | c -> break "%c is not hexa-encoded" c
 
 let assert_encoded = function
   | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '=' | '_' | '-' -> ()
-  | _ -> break "encoded"
+  | c -> break "%c is not encoded properly" c
 
 let encoded_of_string algo e =
   try
     let () =
       match algo with
       | SHA256 ->
-          if String.length e <> 64 then break "encoded";
+          if String.length e <> 64 then break "invalid size";
           String.iter assert_hexa e
       | SHA512 ->
-          if String.length e <> 128 then break "encoded";
+          if String.length e <> 128 then break "invalid size";
           String.iter assert_hexa e
       | Unregistered _ -> String.iter assert_encoded e
     in
     Ok e
-  with Break e -> Error e
+  with Break e -> error_msg "Digest.encoded_of_string: invalid format (%S)" e
 
 let v a e =
   match encoded_of_string a e with
@@ -70,18 +71,22 @@ let encoded_hash d = d.encoded
 
 let of_string str =
   match String.cut ~sep:":" str with
-  | None -> Error "digest"
+  | None -> error_msg "Digest.of_string: %S does not contain ':'" str
   | Some (a, e) -> (
       match algorithm_of_string a with
       | Ok a -> (
           match encoded_of_string a e with
           | Ok e -> Ok { algorithm = a; encoded = e }
-          | Error e -> Error e)
-      | Error e -> Error e)
+          | Error _ as e -> e)
+      | Error _ as e -> e)
 
 let to_string t = string_of_algorithm t.algorithm ^ ":" ^ t.encoded
 let pp = Fmt.of_to_string to_string
-let of_yojson = function `String s -> of_string s | _ -> Error "digest"
+
+let of_yojson = function
+  | `String s -> unwrap (of_string s)
+  | _ -> Error "Digest.t"
+
 let to_yojson s = `String (to_string s)
 
 let equal x y =
@@ -90,24 +95,20 @@ let equal x y =
 let sha256 s =
   match encoded_of_string SHA256 s with
   | Ok e -> { algorithm = SHA256; encoded = e }
-  | Error e -> invalid_arg e
+  | Error (`Msg e) -> invalid_arg e
 
 let sha512 s =
   match encoded_of_string SHA512 s with
   | Ok e -> { algorithm = SHA512; encoded = e }
-  | Error e -> invalid_arg e
+  | Error (`Msg e) -> invalid_arg e
 
 let validation_error a to_hex ~got ~expected =
   let a = string_of_algorithm a in
-  Fmt.kstr
-    (fun e -> Error e)
-    "digest: validation error, got %s:%s, expected %s:%s" a (to_hex got) a
-    (to_hex expected)
+  error_msg "Digest.validate: validation error, got %s:%s, expected %s:%s" a
+    (to_hex got) a (to_hex expected)
 
 let unregistered_error ds =
-  Fmt.kstr
-    (fun e -> Error e)
-    "digest: unregistered algorithms %a"
+  error_msg "Digest.validate: unregistered algorithms %a"
     Fmt.(Dump.list string)
     ds
 

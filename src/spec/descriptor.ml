@@ -18,7 +18,7 @@ module Base64 : sig
   type t [@@deriving yojson]
 
   val of_raw : string -> t
-  val to_string : t -> (string, string) result
+  val to_string : t -> (string, [ `Msg of string ]) result
 end = struct
   type t = string
 
@@ -40,9 +40,7 @@ end = struct
     | _ -> Error "urls"
 
   let to_yojson u = `String u
-
-  let to_string u =
-    match Base64.decode u with Ok s -> Ok s | Error (`Msg e) -> Error e
+  let to_string u = Base64.decode u
 end
 
 type t = {
@@ -59,6 +57,7 @@ type t = {
 
 let pp ppf t = pp_json ppf (to_yojson t)
 let media_type t = t.media_type
+let platform t = t.platform
 
 let empty =
   {
@@ -87,12 +86,11 @@ let check t =
           if t.size = Int64.of_int (String.length data) then
             Digest.validate t.digest data
           else
-            Fmt.kstr
-              (fun s -> Error s)
-              "invalid size: expected %Ld, got %d" t.size (String.length data))
+            error_msg "Descriptor.check: invalid size: expected %Ld, got %d"
+              t.size (String.length data))
 
 let of_yojson json =
   let result = of_yojson json in
   match result with
   | Error _ -> result
-  | Ok t -> ( match check t with Ok () -> result | Error e -> Error e)
+  | Ok t -> ( match unwrap (check t) with Ok () -> result | Error _ as e -> e)

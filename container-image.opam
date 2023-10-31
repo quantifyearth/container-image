@@ -22,6 +22,7 @@ depends: [
   "mirage-crypto-rng-eio"
   "cohttp"
   "cohttp-eio"
+  "progress"
   "tls-eio"
   "eio" {>= "0.12"}
   "eio_main"

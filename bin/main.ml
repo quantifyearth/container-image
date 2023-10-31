@@ -19,7 +19,7 @@ let platform =
     value
     @@ opt (some string) None
     @@ info ~doc:"Set platform if server is multi-platform capable"
-         [ "platform string" ])
+         [ "platform" ])
 
 let image =
   Arg.(
@@ -51,7 +51,7 @@ let https ~authenticator =
     Tls_eio.client_of_flow ?host tls_config raw
 
 let run () all_tags disable_content_trust platform image =
-  ignore (all_tags, disable_content_trust, platform, image);
+  ignore (all_tags, disable_content_trust, image);
   Eio_main.run @@ fun env ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let client =
@@ -60,7 +60,7 @@ let run () all_tags disable_content_trust platform image =
       (Eio.Stdenv.net env)
   in
   let root = Eio.Stdenv.cwd env in
-  Container_image.fetch ~client ~root image
+  Container_image.fetch ~client ~root ?platform image
 
 let version =
   match Build_info.V1.version () with

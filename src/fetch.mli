@@ -1,8 +1,8 @@
-module Spec = Container_image_spec
+open Eio
 
 val fetch :
   ?platform:string ->
-  root:Eio.Fs.dir_ty Eio.Path.t ->
+  root:Fs.dir_ty Path.t ->
   client:Cohttp_eio.Client.t ->
   string ->
   unit

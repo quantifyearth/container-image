@@ -22,7 +22,10 @@ type v = OCI of OCI.t | Docker of Docker.t
 type t
 
 val pp : t Fmt.t
-val of_string : media_type:Media_type.t -> string -> (t, string) result
+
+val of_string :
+  media_type:Media_type.t -> string -> (t, [ `Msg of string ]) result
+
 val media_type : t -> Media_type.t
 val v : t -> v
-val of_descriptor : Descriptor.t -> string -> (t, string) result
+val of_descriptor : Descriptor.t -> string -> (t, [ `Msg of string ]) result

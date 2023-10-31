@@ -64,7 +64,7 @@ module Docker = struct
     open_stdin : bool; [@key "OpenStdin"] [@default false]
     stdin_once : bool; [@key "StdinOnce"] [@default false]
     env : env list option; [@key "Env"]
-    cmd : string list; [@key "Cmd"] [@default []]
+    cmd : string list option; [@key "Cmd"] [@default None]
     healthcheck : set; [@key "HealthCheck"] [@default []]
     args_escaped : bool option; [@key "ArgsEscaped"] [@default None]
     image : string option; [@key "Image"] [@default None]

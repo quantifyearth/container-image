@@ -1,2 +1,3 @@
+module Spec = Container_image_spec
 
-let fetch = Docker.fetch
+let fetch = Fetch.fetch

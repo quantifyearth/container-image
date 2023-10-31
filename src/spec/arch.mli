@@ -19,6 +19,7 @@ type t =
 [@@deriving yojson]
 
 val pp : t Fmt.t
+val of_string : string -> (t, [ `Msg of string ]) result
 
 type variant = V6 | V7 | V8 [@@deriving yojson]
 

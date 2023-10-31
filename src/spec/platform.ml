@@ -1,3 +1,6 @@
+open Common
+open Astring
+
 type t = {
   architecture : Arch.t;
   os : OS.t;
@@ -11,16 +14,33 @@ type t = {
 let arch t = t.architecture
 let os t = t.os
 
+let of_string str =
+  match String.cut ~sep:"/" str with
+  | Some (os, arch) ->
+      let* os = OS.of_string os in
+      let+ architecture = Arch.of_string arch in
+      {
+        os;
+        architecture;
+        os_version = None;
+        os_features = [];
+        variant = None;
+        features = [];
+      }
+  | None -> error_msg "Platform.of_string: invalid string (%S)" str
+
+let pp ppf t = Fmt.pf ppf "%a/%a" OS.pp t.os Arch.pp t.architecture
+let pp_v = Fmt.option ~none:(Fmt.any "N/A") Arch.pp_variant
+
+let err_arch_variant t =
+  Fmt.failwith "%a/%a: invalid architecture/variant pair" Arch.pp t.architecture
+    pp_v t.variant
+
+let err_os_arch t =
+  Fmt.failwith "%a/%a: invalid os/architecture pair" OS.pp t.os Arch.pp
+    t.architecture
+
 let check t =
-  let pp_v = Fmt.option ~none:(Fmt.any "N/A") Arch.pp_variant in
-  let err_arch_variant () =
-    Fmt.failwith "%a/%a: invalid architecture/variant pair" Arch.pp
-      t.architecture pp_v t.variant
-  in
-  let err_os_arch () =
-    Fmt.failwith "%a/%a: invalid os/architecture pair" OS.pp t.os Arch.pp
-      t.architecture
-  in
   let () =
     match (t.os, t.os_features) with
     | Windows, [ "win32k" ] -> ()
@@ -33,7 +53,7 @@ let check t =
   let () =
     match (t.architecture, t.variant) with
     | Arm, Some V6 | Arm, Some V7 | Arm, Some V8 | Arm64, Some V8 -> ()
-    | Arm, _ | Arm64, _ | _, Some _ -> err_arch_variant ()
+    | Arm, _ | Arm64, _ | _, Some _ -> err_arch_variant t
     | _ -> ()
   in
   let () =
@@ -82,7 +102,7 @@ let check t =
     | Windows, Arm
     | Windows, Arm64 ->
         ()
-    | _, _ -> err_os_arch ()
+    | _, _ -> err_os_arch t
   in
   let () =
     match t.features with

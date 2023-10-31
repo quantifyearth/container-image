@@ -47,6 +47,8 @@ module OCI = struct
   let layer str = Ok (Raw str) (* TODO *)
 
   let of_string ty str =
+    wrap
+    @@
     match ty with
     | Media_type.OCI.Empty -> Ok Empty
     | Descriptor -> descriptor str
@@ -100,6 +102,8 @@ module Docker = struct
   let layer str = Ok (Raw str) (* TODO *)
 
   let of_string ty str =
+    wrap
+    @@
     match ty with
     | Media_type.Docker.Image_manifest -> image_manifest str
     | Image_manifest_list -> image_manifest_list str
@@ -132,7 +136,7 @@ let of_string ~media_type str =
 let media_type t = t.media_type
 
 let err_size e g =
-  Fmt.kstr (fun s -> Error s) "invalid size: expected %Ld, got %d" e g
+  error_msg "Blob.of_descriptor: invalid size: expected %Ld, got %d" e g
 
 let of_descriptor d body =
   let digest = Descriptor.digest d in

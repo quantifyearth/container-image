@@ -3,7 +3,10 @@ open Astring
 exception Break of string
 
 let error fmt = Fmt.kstr (fun s -> Error s) fmt
+let error_msg fmt = Fmt.kstr (fun s -> Error (`Msg s)) fmt
 let pp_json ppf t = Fmt.string ppf (Yojson.Safe.to_string t)
+let unwrap = function Ok _ as ok -> ok | Error (`Msg e) -> Error e
+let wrap = function Ok _ as ok -> ok | Error e -> Error (`Msg e)
 
 type date_time = Ptime.t * Ptime.tz_offset_s option
 

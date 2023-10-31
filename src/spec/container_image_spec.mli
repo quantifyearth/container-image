@@ -20,6 +20,8 @@ module Layer = Layer
 module Media_type = Media_type
 module Blob = Blob
 module Auth = Auth
+module Platform = Platform
+module OS = OS
 
 type oci
 (** The type for OCI images as described in the

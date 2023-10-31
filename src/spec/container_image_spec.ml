@@ -9,6 +9,8 @@ module Layer = Layer
 module Media_type = Media_type
 module Blob = Blob
 module Auth = Auth
+module Platform = Platform
+module OS = OS
 
 type oci = {
   manifest : Manifest.OCI.t;
