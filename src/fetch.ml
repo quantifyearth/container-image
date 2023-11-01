@@ -388,11 +388,7 @@ let init_display ?platform image =
       | None -> const ""
       | Some p -> constf "%a" Fmt.(styled `Faint (brackets string)) p)
   in
-  let make_formatter oc =
-    Format.make_formatter (output_substring oc) (fun () -> flush oc)
-  in
-  let config = Progress.Config.v ~ppf:(make_formatter stdout) () in
-  Progress.Display.start ~config Progress.Multi.(line image_name)
+  Progress.Display.start Progress.Multi.(line image_name)
 
 let with_line ~display bar f =
   let reporter = Progress.Display.add_line display bar in
