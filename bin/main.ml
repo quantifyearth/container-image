@@ -60,7 +60,8 @@ let run () all_tags disable_content_trust platform image =
       (Eio.Stdenv.net env)
   in
   let root = Eio.Stdenv.cwd env in
-  Container_image.fetch ~client ~root ?platform image
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  Container_image.fetch ~client ~root ~domain_mgr ?platform image
 
 let version =
   match Build_info.V1.version () with

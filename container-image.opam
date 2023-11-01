@@ -15,6 +15,7 @@ depends: [
   "yojson"
   "ppx_deriving_yojson"
   "digestif"
+  "decompress"
   "base64"
   "cmdliner"
   "logs"

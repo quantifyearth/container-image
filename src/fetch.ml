@@ -5,58 +5,138 @@ let auth_base = "https://auth.docker.io"
 let auth_service = "registry.docker.io"
 
 module Flow = struct
-  type t = {
-    progress : int -> unit;
-    length : int64;
-    mutable read : int64;
-    flow : Eio.Flow.source_ty Eio.Resource.t;
-    feed : ?off:int -> ?len:int -> Cstruct.t -> unit;
-    get : unit -> Digest.t;
-  }
+  module Progress = struct
+    type t = {
+      flow : Eio.Flow.source_ty Eio.Resource.t;
+      progress : int -> unit;
+    }
 
-  let read_methods = []
+    let read_methods = []
 
-  let single_read (t : t) buf =
-    let i = Eio.Flow.single_read t.flow buf in
-    t.feed ~off:0 ~len:i buf;
-    t.read <- Int64.add t.read (Int64.of_int i);
-    t.progress i;
-    if t.read > t.length then failwith "stream too long";
-    i
+    let single_read (t : t) buf =
+      let i = Eio.Flow.single_read t.flow buf in
+      t.progress i;
+      i
+  end
+
+  module Digest = struct
+    type t = {
+      flow : Eio.Flow.source_ty Eio.Resource.t;
+      feed : ?off:int -> ?len:int -> Cstruct.t -> unit;
+      length : int64;
+      read : int64 ref;
+    }
+
+    let read_methods = []
+
+    let finalise ctx =
+      (* FIXME: make it work for SHA512 too *)
+      let hash = Digestif.SHA256.(get !ctx) in
+      let hex = Digestif.SHA256.(to_hex hash) in
+      Digest.sha256 hex
+
+    let single_read (t : t) buf =
+      let i = Eio.Flow.single_read t.flow buf in
+      t.read := Int64.add !(t.read) (Int64.of_int i);
+      if !(t.read) > t.length then failwith "stream too long";
+      t.feed ~off:0 ~len:i buf;
+      i
+  end
+
+  module Gzip = struct
+    type state = Read | Flush of int
+
+    type t = {
+      flow : Eio.Flow.source_ty Eio.Resource.t;
+      mutable decoder : Gz.Inf.decoder;
+      i : De.bigstring;
+      o : De.bigstring;
+      mutable state : state;
+    }
+
+    let read_methods = []
+
+    let rec single_read t buf =
+      match t.state with
+      | Flush rem ->
+          let io_len = De.io_buffer_size in
+          let off = io_len - rem in
+          let len = min io_len (Cstruct.length buf) in
+          Cstruct.blit (Cstruct.of_bigarray ~off t.o) 0 buf 0 len;
+          let rem = rem - len in
+          if rem = 0 then (
+            let decoder = Gz.Inf.flush t.decoder in
+            t.decoder <- decoder;
+            t.state <- Read)
+          else t.state <- Flush rem;
+          len
+      | Read -> (
+          match Gz.Inf.decode t.decoder with
+          | `Await decoder ->
+              let i = Eio.Flow.single_read t.flow (Cstruct.of_bigarray t.i) in
+              let decoder = Gz.Inf.src decoder t.i 0 i in
+              t.decoder <- decoder;
+              single_read t buf
+          | `Flush decoder ->
+              t.state <- Flush (De.io_buffer_size - Gz.Inf.dst_rem decoder);
+              single_read t buf
+          | `Malformed err -> Fmt.failwith "Gzip.single_read: Error %s" err
+          | `End decoder ->
+              t.state <- Flush (De.io_buffer_size - Gz.Inf.dst_rem decoder);
+              single_read t buf)
+  end
+
+  let progress = Eio.Flow.Pi.source (module Progress)
+  let digest = Eio.Flow.Pi.source (module Digest)
+  let gzip = Eio.Flow.Pi.source (module Gzip)
 end
 
-let flow = Eio.Flow.Pi.source (module Flow)
+let with_progress ~progress flow =
+  Eio.Resource.T (Flow.Progress.{ flow; progress }, Flow.progress)
 
-let mk_flow ~progress ~length f =
+let with_digest ~ctx ~read ~length flow =
   (* FIXME: make it work for SHA512 too *)
-  let ctx = ref (Digestif.SHA256.init ()) in
   let feed ?off ?len buf =
     let arr = Cstruct.to_bigarray buf in
     ctx := Digestif.SHA256.feed_bigstring !ctx ?off ?len arr
   in
-  let get () =
-    let hash = Digestif.SHA256.(get !ctx) in
-    let hex = Digestif.SHA256.(to_hex hash) in
-    Digest.sha256 hex
+  Eio.Resource.T (Flow.Digest.{ flow; feed; length; read }, Flow.digest)
+
+let with_gzip flow =
+  let i = De.bigstring_create De.io_buffer_size in
+  let o = De.bigstring_create De.io_buffer_size in
+  let decoder = Gz.Inf.decoder `Manual ~o in
+  Eio.Resource.T (Flow.Gzip.{ flow; decoder; i; o; state = Read }, Flow.gzip)
+
+let mk_flow ?(gzip = false) ~progress ~length flow =
+  let ctx = ref (Digestif.SHA256.init ()) in
+  let read = ref 0L in
+  let with_gzip flow = if gzip then with_gzip flow else flow in
+  let flow =
+    flow
+    |> with_digest ~read ~ctx ~length
+    |> with_progress ~progress
+    |> with_gzip
   in
-  let t = { Flow.flow = f; progress; feed; get; read = 0L; length } in
-  (t, Eio.Resource.T (t, flow))
+  let finalise () =
+    if !read <> length then failwith "invalid length";
+    Flow.Digest.finalise ctx
+  in
+  (finalise, flow)
 
 let read_all_raw flow = Eio.Buf_read.(parse_exn take_all) ~max_size:max_int flow
 
-let read_all ~progress ~length ~digest flow =
-  let t, f = mk_flow ~progress ~length flow in
+let read_all ?gzip ~progress ~length ~digest flow =
+  let finalise, f = mk_flow ?gzip ~progress ~length flow in
   let str = read_all_raw f in
-  let d = t.get () in
-  if t.read <> length then failwith "invalid length";
+  let d = finalise () in
   if d <> digest then failwith "invalid digest";
   str
 
-let copy ~progress ~length ~digest src dst =
-  let t, f = mk_flow ~progress ~length src in
+let copy ?gzip ~progress ~length ~digest src dst =
+  let finalise, f = mk_flow ?gzip ~progress ~length src in
   Eio.Flow.copy f dst;
-  let d = t.get () in
-  if t.read <> length then failwith "invalid length";
+  let d = finalise () in
   if d <> digest then failwith "invalid digest";
   ()
 
@@ -168,7 +248,7 @@ let get_manifest client ~progress ~sw ~token { image; reference } =
   in
   get client ~token ~sw ~extra_headers uri out
 
-let get_blob client ~progress ~sw ~token ~root image d =
+let get_blob client ?gzip ~progress ~sw ~token ~root image d =
   let size = Descriptor.size d in
   let digest = Descriptor.digest d in
   let media_type = Descriptor.media_type d in
@@ -188,7 +268,7 @@ let get_blob client ~progress ~sw ~token ~root image d =
     else (
       mkdir_rec ~perm:0o700 (parent target_file);
       let fd = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) target_file in
-      copy ~progress ~length:content_length ~digest body fd;
+      copy ?gzip ~progress ~length:content_length ~digest body fd;
       Eio.Flow.close fd);
     match media_type with
     | Docker Image_config -> (
@@ -292,22 +372,22 @@ let bar_of_descriptor d =
   in
   bar ~color ~total txt
 
-let fetch ?platform ~root ~client image =
+let fetch ?platform ~root ~client ~domain_mgr:_ image =
   let image = split_image image in
   let root = Eio.Path.(root / image_to_file image.image) in
   let token = Eio.Switch.run @@ fun sw -> get_token client ~sw image in
   let display =
     let image_name =
       Progress.Line.(
-        spacer 4 ++ constf "Fetching %a" Fmt.(styled `Bold pp_image) image)
+        spacer 4 ++ constf "🐫 Fetching %a" Fmt.(styled `Bold pp_image) image)
     in
     Progress.Display.start Progress.Multi.(line image_name)
   in
-  let get_blob ~sw d =
+  let get_blob ?gzip ~sw d =
     let bar = bar_of_descriptor d in
     let reporter = Progress.Display.add_line display bar in
     let progress i = Progress.Reporter.report reporter (Int64.of_int i) in
-    let r = get_blob client ~progress ~sw ~token ~root image.image d in
+    let r = get_blob client ?gzip ~progress ~sw ~token ~root image.image d in
     Progress.Reporter.finalise reporter;
     r
   in
@@ -339,30 +419,39 @@ let fetch ?platform ~root ~client image =
   in
 
   (* start dowload here *)
-  Eio.Switch.run (fun sw ->
-      let manifest = get_manifest ~sw (`Tag image.reference) in
-      match Blob.v manifest with
-      | Docker (Image_manifest_list m) ->
-          let ds = Manifest_list.manifests m in
-          let download d =
-            let digest = Descriptor.digest d in
-            let blob = get_manifest ~sw (`Digest digest) in
-            match Blob.v blob with
-            | Docker (Image_manifest m) -> (
-                let config = Manifest.Docker.config m in
-                match (platform, Descriptor.platform d) with
-                | Some p, Some p' when p <> p' ->
-                    (* Fmt.epr "XXX SKIP platform=%a\n%!" Platform.pp p'; *)
-                    ()
-                | _ ->
-                    let layers = Manifest.Docker.layers m in
-                    let _config = get_blob ~sw config in
-                    let _layers = List.map (get_blob ~sw) layers in
-                    (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
-                    (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
-                    ())
-            | _ -> Fmt.epr "XXX ERROR\n%!"
-          in
-          List.iter (fun d -> Eio.Fiber.fork ~sw (fun () -> download d)) ds
-      | _ -> Fmt.epr "XXX TODO\n%!");
+  let manifest =
+    Eio.Switch.run @@ fun sw -> get_manifest ~sw (`Tag image.reference)
+  in
+  let () =
+    match Blob.v manifest with
+    | Docker (Image_manifest_list m) ->
+        let ds = Manifest_list.manifests m in
+        let download ~sw d =
+          let digest = Descriptor.digest d in
+          let blob = get_manifest ~sw (`Digest digest) in
+          match Blob.v blob with
+          | Docker (Image_manifest m) -> (
+              let config = Manifest.Docker.config m in
+              match (platform, Descriptor.platform d) with
+              | Some p, Some p' when p <> p' ->
+                  (* Fmt.epr "XXX SKIP platform=%a\n%!" Platform.pp p'; *)
+                  ()
+              | _ ->
+                  let layers = Manifest.Docker.layers m in
+                  let _config = get_blob ~sw config in
+                  let _layers = List.map (get_blob ~gzip:false ~sw) layers in
+                  (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
+                  (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
+                  ())
+          | _ -> Fmt.epr "XXX ERROR\n%!"
+        in
+        Eio.Switch.run @@ fun sw ->
+        List.iter
+          (fun d ->
+            Eio.Fiber.fork ~sw (fun () ->
+                (*                Eio.Domain_manager.run domain_mgr (fun () -> *)
+                Eio.Switch.run @@ fun sw -> download ~sw d))
+          ds
+    | _ -> Fmt.epr "XXX TODO\n%!"
+  in
   Progress.Display.finalise display
