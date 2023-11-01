@@ -3,6 +3,12 @@ open Container_image_spec
 let registry_base = "https://registry-1.docker.io"
 let auth_base = "https://auth.docker.io"
 let auth_service = "registry.docker.io"
+let progress = Mutex.create ()
+
+let with_lock ~lock fn =
+  Mutex.lock lock;
+  let finally () = Mutex.unlock lock in
+  Fun.protect ~finally fn
 
 module Flow = struct
   module Progress = struct
@@ -15,7 +21,7 @@ module Flow = struct
 
     let single_read (t : t) buf =
       let i = Eio.Flow.single_read t.flow buf in
-      t.progress i;
+      with_lock ~lock:progress (fun () -> t.progress i);
       i
   end
 
@@ -318,7 +324,7 @@ let bar ~color ~total message =
   let open Progress.Line.Using_int64 in
   list
     [
-      rpad 22 (constf " %s" message);
+      rpad 22 (const message);
       bytes;
       bytes_per_sec;
       bar ~color ~style:`UTF8 total;
@@ -372,24 +378,38 @@ let bar_of_descriptor d =
   in
   bar ~color ~total txt
 
-let fetch ?platform ~root ~client ~domain_mgr:_ image =
+let init_display ?platform image =
+  let image_name =
+    Progress.Line.(
+      spacer 4
+      ++ constf "🐫 Fetching %a" Fmt.(styled `Bold pp_image) image
+      ++
+      match platform with
+      | None -> const ""
+      | Some p -> constf "%a" Fmt.(styled `Faint (brackets string)) p)
+  in
+  let make_formatter oc =
+    Format.make_formatter (output_substring oc) (fun () -> flush oc)
+  in
+  let config = Progress.Config.v ~ppf:(make_formatter stdout) () in
+  Progress.Display.start ~config Progress.Multi.(line image_name)
+
+let with_line ~display bar f =
+  let reporter = Progress.Display.add_line display bar in
+  let r = f reporter in
+  Progress.Reporter.finalise reporter;
+  r
+
+let fetch ?platform ~root ~client ~domain_mgr image =
   let image = split_image image in
   let root = Eio.Path.(root / image_to_file image.image) in
   let token = Eio.Switch.run @@ fun sw -> get_token client ~sw image in
-  let display =
-    let image_name =
-      Progress.Line.(
-        spacer 4 ++ constf "🐫 Fetching %a" Fmt.(styled `Bold pp_image) image)
-    in
-    Progress.Display.start Progress.Multi.(line image_name)
-  in
+  let display = init_display ?platform image in
   let get_blob ?gzip ~sw d =
     let bar = bar_of_descriptor d in
-    let reporter = Progress.Display.add_line display bar in
+    with_line ~display bar @@ fun reporter ->
     let progress i = Progress.Reporter.report reporter (Int64.of_int i) in
-    let r = get_blob client ?gzip ~progress ~sw ~token ~root image.image d in
-    Progress.Reporter.finalise reporter;
-    r
+    get_blob client ?gzip ~progress ~sw ~token ~root image.image d
   in
   let get_manifest ~sw reference =
     let image' =
@@ -403,11 +423,9 @@ let fetch ?platform ~root ~client ~domain_mgr:_ image =
     let bar =
       bar ~color:(color_picker ()) ~total:100L ("manifest:" ^ reference')
     in
-    let reporter = Progress.Display.add_line display bar in
+    with_line ~display bar @@ fun reporter ->
     let progress i = Progress.Reporter.report reporter (Int64.of_int i) in
-    let r = get_manifest client ~progress ~sw ~token image' in
-    Progress.Reporter.finalise reporter;
-    r
+    get_manifest client ~progress ~sw ~token image'
   in
   let platform =
     match platform with
@@ -426,13 +444,17 @@ let fetch ?platform ~root ~client ~domain_mgr:_ image =
     match Blob.v manifest with
     | Docker (Image_manifest_list m) ->
         let ds = Manifest_list.manifests m in
+        Logs.info (fun l ->
+            let platforms = List.filter_map Descriptor.platform ds in
+            l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
         let download ~sw d =
           let digest = Descriptor.digest d in
           let blob = get_manifest ~sw (`Digest digest) in
           match Blob.v blob with
           | Docker (Image_manifest m) -> (
               let config = Manifest.Docker.config m in
-              match (platform, Descriptor.platform d) with
+              let descriptor_platform = Descriptor.platform d in
+              match (platform, descriptor_platform) with
               | Some p, Some p' when p <> p' ->
                   (* Fmt.epr "XXX SKIP platform=%a\n%!" Platform.pp p'; *)
                   ()
@@ -445,11 +467,9 @@ let fetch ?platform ~root ~client ~domain_mgr:_ image =
                   ())
           | _ -> Fmt.epr "XXX ERROR\n%!"
         in
-        Eio.Switch.run @@ fun sw ->
-        List.iter
+        Eio.Fiber.List.iter
           (fun d ->
-            Eio.Fiber.fork ~sw (fun () ->
-                (*                Eio.Domain_manager.run domain_mgr (fun () -> *)
+            Eio.Domain_manager.run domain_mgr (fun () ->
                 Eio.Switch.run @@ fun sw -> download ~sw d))
           ds
     | _ -> Fmt.epr "XXX TODO\n%!"

@@ -15,8 +15,8 @@ let arch t = t.architecture
 let os t = t.os
 
 let of_string str =
-  match String.cut ~sep:"/" str with
-  | Some (os, arch) ->
+  match String.cuts ~sep:"/" str with
+  | [ os; arch ] ->
       let* os = OS.of_string os in
       let+ architecture = Arch.of_string arch in
       {
@@ -27,10 +27,29 @@ let of_string str =
         variant = None;
         features = [];
       }
-  | None -> error_msg "Platform.of_string: invalid string (%S)" str
+  | [ os; arch; variant ] ->
+      let* os = OS.of_string os in
+      let* architecture = Arch.of_string arch in
+      let+ variant = Arch.variant_of_string variant in
+      {
+        os;
+        architecture;
+        os_version = None;
+        os_features = [];
+        variant = Some variant;
+        features = [];
+      }
+  | _ -> error_msg "Platform.of_string: invalid string (%S)" str
 
-let pp ppf t = Fmt.pf ppf "%a/%a" OS.pp t.os Arch.pp t.architecture
+let pp ppf t =
+  match t.variant with
+  | None -> Fmt.pf ppf "%a/%a" OS.pp t.os Arch.pp t.architecture
+  | Some v ->
+      Fmt.pf ppf "%a/%a/%a" OS.pp t.os Arch.pp t.architecture Arch.pp_variant v
+
+let to_string = Fmt.to_to_string pp
 let pp_v = Fmt.option ~none:(Fmt.any "N/A") Arch.pp_variant
+let dump ppf t = pp_json ppf (to_yojson t)
 
 let err_arch_variant t =
   Fmt.failwith "%a/%a: invalid architecture/variant pair" Arch.pp t.architecture

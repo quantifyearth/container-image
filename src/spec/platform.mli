@@ -1,6 +1,8 @@
 type t [@@deriving yojson]
 
 val pp : t Fmt.t
+val dump : t Fmt.t
+val to_string : t -> string
 val of_string : string -> (t, [ `Msg of string ]) result
 val arch : t -> Arch.t
 val os : t -> OS.t

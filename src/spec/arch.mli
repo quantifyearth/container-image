@@ -23,4 +23,5 @@ val of_string : string -> (t, [ `Msg of string ]) result
 
 type variant = V6 | V7 | V8 [@@deriving yojson]
 
+val variant_of_string : string -> (variant, [ `Msg of string ]) result
 val pp_variant : variant Fmt.t
