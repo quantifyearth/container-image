@@ -111,7 +111,7 @@ let get_blob client ~progress ~sw ~token ~cache image d =
       | None -> ()
       | Some d -> if digest <> d then failwith "invalid digest header"
     in
-    (if Cache.Blob.exists cache digest then
+    (if Cache.Blob.exists ~size:content_length cache digest then
        (* FIXME: int64/int conversion *)
        progress (Int64.to_int content_length)
      else

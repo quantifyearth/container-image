@@ -3,6 +3,7 @@
  (name main)
  (libraries
   container-image
+  xdg
   cmdliner
   logs
   logs.cli

@@ -5,7 +5,8 @@ type t = { root : [ `Dir ] Eio.Path.t }
 
 let v root = { root }
 let ( / ) = Eio.Path.( / )
-let init t = Eio.Path.mkdirs ~perm:0o700 (t.root / "blobs" / "sha256")
+let mkdirs dir = Eio.Path.mkdirs ~exists_ok:true ~perm:0o700 dir
+let init t = mkdirs (t.root / "blobs" / "sha256")
 
 module Blob = struct
   let file t digest =
@@ -13,18 +14,31 @@ module Blob = struct
     let hash = Digest.encoded_hash digest in
     Eio.Path.(t.root / "blobs" / algo / hash)
 
-  let exists t digest = Eio.Path.is_file (file t digest)
+  let exists t ~size digest =
+    let file = file t digest in
+    Eio.Path.is_file file
+    &&
+    let broken =
+      (Eio.Path.stat ~follow:true file).size <> Optint.Int63.of_int64 size
+    in
+    if broken then Eio.Path.unlink file;
+    not broken
 
   let add ~sw t digest body =
     let file = file t digest in
     let () =
       match Eio.Path.split file with
       | None -> ()
-      | Some (parent, _) -> Eio.Path.mkdirs ~perm:0o700 parent
+      | Some (parent, _) -> mkdirs parent
     in
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
-    Flow.copy body dst;
-    Eio.Flow.close dst
+    try
+      Flow.copy body dst;
+      Eio.Flow.close dst
+    with e ->
+      Eio.Flow.close dst;
+      Eio.Path.unlink file;
+      raise e
 
   let get_string t digest =
     let file = file t digest in

@@ -62,9 +62,8 @@ let run () all_tags disable_content_trust platform image =
       (Eio.Stdenv.net env)
   in
   let fs = Eio.Stdenv.fs env in
-  let root =
-    Eio.Path.(fs / "Users" / "thomas" / ".cache" / "container-image")
-  in
+  let xdg = Xdg.create ~env:Sys.getenv_opt () in
+  let root = Eio.Path.(fs / Xdg.cache_dir xdg / "container-image") in
   let cache = Container_image.Cache.v root in
   Container_image.Cache.init cache;
   let domain_mgr = Eio.Stdenv.domain_mgr env in
