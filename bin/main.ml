@@ -22,9 +22,11 @@ let platform =
          [ "platform" ])
 
 let image =
+  let open Container_image in
+  let image = Arg.conv (Image.of_string, Image.pp) in
   Arg.(
     required
-    @@ pos 0 (some string) None
+    @@ pos 0 (some image) None
     @@ info ~doc:"Download an image from a registry" ~docv:"NAME[:TAG|@DIGEST]"
          [])
 
@@ -59,9 +61,14 @@ let run () all_tags disable_content_trust platform image =
       ~https:(Some (https ~authenticator:null_auth))
       (Eio.Stdenv.net env)
   in
-  let root = Eio.Stdenv.cwd env in
+  let fs = Eio.Stdenv.fs env in
+  let root =
+    Eio.Path.(fs / "Users" / "thomas" / ".cache" / "container-image")
+  in
+  let cache = Container_image.Cache.v root in
+  Container_image.Cache.init cache;
   let domain_mgr = Eio.Stdenv.domain_mgr env in
-  Container_image.fetch ~client ~root ~domain_mgr ?platform image
+  Container_image.fetch ~client ~cache ~domain_mgr ?platform image
 
 let version =
   match Build_info.V1.version () with

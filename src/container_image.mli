@@ -1,9 +1,11 @@
 module Spec = Container_image_spec
+module Cache = Cache
+module Image = Image
 
 val fetch :
   ?platform:string ->
-  root:Eio.Fs.dir_ty Eio.Path.t ->
+  cache:Cache.t ->
   client:Cohttp_eio.Client.t ->
   domain_mgr:Eio.Domain_manager.ty Eio.Resource.t ->
-  string ->
+  Image.t ->
   unit

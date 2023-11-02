@@ -35,6 +35,8 @@ pin-depends: [
   [ "cohttp.dev"     "git+https://github.com/mirage/ocaml-cohttp.git#master"]
   [ "http.dev"       "git+https://github.com/mirage/ocaml-cohttp.git#master"]
   [ "mirage-crypto-rng.0.11.2" "git+https://github.com/dinosaure/mirage-crypto.git#parallel"]
+  [ "eio.0.12"       "git+https://github.com/ocaml-multicore/eio.git#main"]
+  [ "eio_posix.0.12" "git+https://github.com/ocaml-multicore/eio.git#main"]
 ]
 
 synopsis: "Tools to manage OCI and Docker images"

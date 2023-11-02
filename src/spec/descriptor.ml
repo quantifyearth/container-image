@@ -56,6 +56,7 @@ type t = {
 [@@deriving yojson]
 
 let pp ppf t = pp_json ppf (to_yojson t)
+let to_string = Fmt.to_to_string pp
 let media_type t = t.media_type
 let platform t = t.platform
 

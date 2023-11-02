@@ -7,5 +7,6 @@
   cohttp-eio
   eio_main
   tls-eio
+  astring
   decompress.gz
   mirage-crypto-rng-eio))
