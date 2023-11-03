@@ -65,10 +65,6 @@ module Blob = struct
 end
 
 module Manifest = struct
-  type v =
-    [ `Docker_manifest of Manifest.Docker.t
-    | `Docker_manifest_list of Manifest_list.t ]
-
   let file t image =
     let org = Image.org image in
     let name = Image.name image in

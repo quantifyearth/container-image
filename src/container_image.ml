@@ -4,3 +4,4 @@ module Image = Image
 
 let fetch = Fetch.fetch
 let list = Ls.list
+let checkout = Checkout.checkout

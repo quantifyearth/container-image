@@ -18,12 +18,8 @@ module Blob : sig
 end
 
 module Manifest : sig
-  type v =
-    [ `Docker_manifest of Manifest.Docker.t
-    | `Docker_manifest_list of Manifest_list.t ]
-
   val exists : t -> Image.t -> bool
-  val get : t -> Image.t -> v
-  val add : sw:Eio.Switch.t -> t -> Image.t -> v -> unit
+  val get : t -> Image.t -> Manifest.t
+  val add : sw:Eio.Switch.t -> t -> Image.t -> Manifest.t -> unit
   val list : t -> Image.t list
 end

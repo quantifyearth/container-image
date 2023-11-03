@@ -119,20 +119,6 @@ module API = struct
     get client ~sw uri out
 end
 
-let manifest_of_body ~media_type body =
-  let err e =
-    Fmt.failwith "Docker.get_manifest: error %s (Content-Type: %s)\n%s" e
-      (Media_type.to_string media_type)
-      body
-  in
-  match Blob.of_string ~media_type body with
-  | Ok b -> (
-      match Blob.v b with
-      | Docker (Image_manifest m) -> `Docker_manifest m
-      | Docker (Image_manifest_list m) -> `Docker_manifest_list m
-      | _ -> err "")
-  | Error (`Msg e) -> err e
-
 type t = {
   display : Display.t;
   client : Cohttp_eio.Client.t;
@@ -162,6 +148,11 @@ let pp_manifest ppf = function
   | `Docker_manifest m -> Manifest.Docker.pp ppf m
   | `Docker_manifest_list m -> Manifest_list.pp ppf m
 
+let manifest_of_string ~media_type str =
+  match Manifest.of_string ~media_type str with
+  | Ok m -> m
+  | Error (`Msg e) -> Fmt.failwith "Fetch.get_root_manifest: %s" e
+
 (* NOTE: we inline the data inside that manifest descriptor in the cache *)
 let get_root_manifest ~sw t =
   let bar =
@@ -187,7 +178,7 @@ let get_root_manifest ~sw t =
       API.get_manifest t.client ~progress ~sw ~token:t.token t.image
     in
     let str = Flow.read_all fd in
-    let m = manifest_of_body ~media_type str in
+    let m = manifest_of_string ~media_type str in
     Cache.Manifest.add ~sw t.cache t.image m;
     m
 
@@ -215,7 +206,7 @@ let get_manifest ~sw t d =
       Cache.Blob.add_fd ~sw t.cache digest fd;
       Cache.Blob.get_string t.cache digest
   in
-  manifest_of_body ~media_type str
+  manifest_of_string ~media_type str
 
 let fetch ?platform ~cache ~client ~domain_mgr image =
   let token = Eio.Switch.run @@ fun sw -> API.get_token client ~sw image in

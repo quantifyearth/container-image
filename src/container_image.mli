@@ -11,3 +11,4 @@ val fetch :
   unit
 
 val list : cache:Cache.t -> Image.t list
+val checkout : cache:Cache.t -> Image.t -> unit

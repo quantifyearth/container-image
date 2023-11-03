@@ -72,7 +72,6 @@ let list () =
   let cache = cache env in
   let images = Container_image.list ~cache in
   List.iter (fun image -> Fmt.pr "%a\n%!" Container_image.Image.pp image) images
-
 (*
     (fun (r, t, i, c, s) -> Fmt.pr "%-25s %-25s %-16s %-14s %s\n" r t i c s)
     [
@@ -84,6 +83,12 @@ let list () =
         "1.31GB" );
     ]
    *)
+
+let checkout () image =
+  Eio_main.run @@ fun env ->
+  let cache = cache env in
+  Container_image.checkout ~cache image
+
 let version =
   match Build_info.V1.version () with
   | None -> "n/a"
@@ -97,8 +102,12 @@ let fetch_cmd =
 let list_term = Term.(const list $ setup)
 let list_cmd = Cmd.v (Cmd.info "list" ~version) list_term
 
+let checkout_cmd =
+  Cmd.v (Cmd.info "checkout" ~version) Term.(const checkout $ setup $ image)
+
 let cmd =
-  Cmd.group ~default:list_term (Cmd.info "image") [ fetch_cmd; list_cmd ]
+  Cmd.group ~default:list_term (Cmd.info "image")
+    [ fetch_cmd; list_cmd; checkout_cmd ]
 
 let () =
   let () = Printexc.record_backtrace true in

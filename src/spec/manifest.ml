@@ -76,6 +76,11 @@ module Docker = struct
   let to_string = Fmt.to_to_string pp
   let media_type _ = Media_type.Docker.Image_manifest
 
+  let of_string s =
+    wrap
+    @@ let* json = json_of_string s in
+       of_yojson json
+
   let to_descriptor t =
     let str = to_string t in
     let digest = Digest.digest_string SHA256 str in
@@ -83,3 +88,26 @@ module Docker = struct
     let media_type = Media_type.Docker Image_manifest in
     Descriptor.v ~media_type ~data:str ~size digest
 end
+
+type t =
+  [ `Docker_manifest of Docker.t | `Docker_manifest_list of Manifest_list.t ]
+
+let image_manifest str =
+  let* json = json_of_string str in
+  let+ m = Docker.of_yojson json in
+  `Docker_manifest m
+
+let image_manifest_list str =
+  let* json = json_of_string str in
+  let+ m = Manifest_list.of_yojson json in
+  `Docker_manifest_list m
+
+let of_string ~media_type body =
+  let err () =
+    Fmt.failwith "Manifest.of_string: invalide media-type: %s"
+      (Media_type.to_string media_type)
+  in
+  match media_type with
+  | Docker Image_manifest -> wrap (image_manifest body)
+  | Docker Image_manifest_list -> wrap (image_manifest_list body)
+  | _ -> err ()
