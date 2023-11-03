@@ -1,4 +1,5 @@
 open Container_image_spec
+open Optint
 
 let registry_base = "https://registry-1.docker.io"
 let auth_base = "https://auth.docker.io"
@@ -7,7 +8,7 @@ let uri fmt = Fmt.kstr Uri.of_string fmt
 
 type response = {
   content_type : Media_type.t;
-  content_length : int64 option;
+  content_length : Int63.t option;
   content_digest : Digest.t option;
   body : Eio.Flow.source_ty Eio.Resource.t;
 }
@@ -34,7 +35,7 @@ let rec get client ~sw ?token ?(extra_headers = []) uri out =
   in
   let content_length =
     match Cohttp.Header.get headers "Content-Length" with
-    | Some l -> Some (Int64.of_string l)
+    | Some l -> Some (Int63.of_string l)
     | None -> None
   in
   let content_digest =
@@ -113,7 +114,7 @@ let get_blob client ~progress ~sw ~token ~cache image d =
     in
     (if Cache.Blob.exists ~size:content_length cache digest then
        (* FIXME: int64/int conversion *)
-       progress (Int64.to_int content_length)
+       progress (Int63.to_int content_length)
      else
        let flow = Flow.source ~progress ~length:content_length ~digest body in
        Cache.Blob.add ~sw cache digest flow);
@@ -154,7 +155,7 @@ let fetch ?platform ~cache ~client ~domain_mgr image =
   let token = Eio.Switch.run @@ fun sw -> get_token client ~sw image in
   let display = Display.init_fetch ?platform image in
   let progress reporter i =
-    Progress.Reporter.report reporter (Int64.of_int i)
+    Progress.Reporter.report reporter (Int63.of_int i)
   in
   let get_blob ~sw d =
     let bar = Display.line_of_descriptor d in
@@ -169,7 +170,7 @@ let fetch ?platform ~cache ~client ~domain_mgr image =
       | None, None -> "latest"
     in
     let bar =
-      Display.line ~color:(Display.next_color ()) ~total:100L
+      Display.line ~color:(Display.next_color ()) ~total:(Int63.of_int 100)
         ("manifest:" ^ reference')
     in
     Display.with_line ~display bar @@ fun r ->

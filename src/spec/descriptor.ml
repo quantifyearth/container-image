@@ -63,7 +63,7 @@ let platform t = t.platform
 let empty =
   {
     media_type = OCI Empty;
-    size = 2L;
+    size = Int63.of_int 2;
     digest =
       Digest.sha256
         "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a";
@@ -84,11 +84,11 @@ let check t =
       match Base64.to_string data with
       | Error e -> Error e
       | Ok data ->
-          if t.size = Int64.of_int (String.length data) then
+          if t.size = Int63.of_int (String.length data) then
             Digest.validate t.digest data
           else
-            error_msg "Descriptor.check: invalid size: expected %Ld, got %d"
-              t.size (String.length data))
+            error_msg "Descriptor.check: invalid size: expected %a, got %d"
+              Int63.pp t.size (String.length data))
 
 let of_yojson json =
   let result = of_yojson json in

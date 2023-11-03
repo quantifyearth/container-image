@@ -1,3 +1,4 @@
+open Optint
 open Container_image_spec
 
 type t
@@ -6,7 +7,7 @@ val v : [ `Dir ] Eio.Path.t -> t
 val init : t -> unit
 
 module Blob : sig
-  val exists : t -> size:int64 -> Digest.t -> bool
+  val exists : t -> size:Int63.t -> Digest.t -> bool
 
   val add :
     sw:Eio.Switch.t -> t -> Digest.t -> Eio.Flow.source_ty Flow.t -> unit

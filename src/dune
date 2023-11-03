@@ -8,5 +8,6 @@
   eio_main
   tls-eio
   astring
+  optint
   decompress.gz
   mirage-crypto-rng-eio))

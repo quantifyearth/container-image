@@ -4,7 +4,7 @@ type t = ((unit -> unit) -> unit, unit) Progress.Display.t
 
 let line ~color ~total message =
   let message = String.sub message 0 (min 21 (String.length message)) in
-  let open Progress.Line.Using_int64 in
+  let open Progress.Line.Using_int63 in
   list
     [
       rpad 22 (const message);

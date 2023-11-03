@@ -1,10 +1,11 @@
+open Optint
 open Container_image_spec
 
 type 'a t
 
 val source :
   progress:(int -> unit) ->
-  length:int64 ->
+  length:Int63.t ->
   digest:Digest.t ->
   Eio.Flow.source_ty Eio.Resource.t ->
   Eio.Flow.source_ty t
@@ -16,7 +17,7 @@ val read_all : Eio.Flow.source_ty t -> string
 
 type ctx
 
-val ctx : length:int64 -> ctx
+val ctx : length:Int63.t -> ctx
 
 val with_digest :
   ctx:ctx ->

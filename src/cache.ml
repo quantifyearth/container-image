@@ -18,9 +18,7 @@ module Blob = struct
     let file = file t digest in
     Eio.Path.is_file file
     &&
-    let broken =
-      (Eio.Path.stat ~follow:true file).size <> Optint.Int63.of_int64 size
-    in
+    let broken = (Eio.Path.stat ~follow:true file).size <> size in
     if broken then Eio.Path.unlink file;
     not broken
 

@@ -136,13 +136,13 @@ let of_string ~media_type str =
 let media_type t = t.media_type
 
 let err_size e g =
-  error_msg "Blob.of_descriptor: invalid size: expected %Ld, got %d" e g
+  error_msg "Blob.of_descriptor: invalid size: expected %a, got %d" Int63.pp e g
 
 let of_descriptor d body =
   let digest = Descriptor.digest d in
   let expected_size = Descriptor.size d in
   let got_size = String.length body in
-  if Int64.of_int got_size <> expected_size then err_size expected_size got_size
+  if Int63.of_int got_size <> expected_size then err_size expected_size got_size
   else
     match Digest.validate digest body with
     | Ok () ->

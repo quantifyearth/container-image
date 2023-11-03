@@ -1,3 +1,4 @@
+open Optint
 open Container_image_spec
 
 let with_lock ~lock fn =
@@ -21,8 +22,8 @@ module Digest = struct
   type t = {
     flow : Eio.Flow.source_ty Eio.Resource.t;
     feed : ?off:int -> ?len:int -> Cstruct.t -> unit;
-    length : int64;
-    read : int64 ref;
+    length : Int63.t;
+    read : Int63.t ref;
   }
 
   let read_methods = []
@@ -35,7 +36,7 @@ module Digest = struct
 
   let single_read (t : t) buf =
     let i = Eio.Flow.single_read t.flow buf in
-    t.read := Int64.add !(t.read) (Int64.of_int i);
+    t.read := Int63.add !(t.read) (Int63.of_int i);
     if !(t.read) > t.length then failwith "stream too long";
     t.feed ~off:0 ~len:i buf;
     i
@@ -93,12 +94,16 @@ let gzip_handler = Eio.Flow.Pi.source (module Gzip)
 let with_progress ~progress flow =
   Eio.Resource.T (Progress.{ flow; progress }, progress_handler)
 
-type ctx = { ctx : Digestif.SHA256.ctx ref; read : int64 ref; length : int64 }
+type ctx = {
+  ctx : Digestif.SHA256.ctx ref;
+  read : Int63.t ref;
+  length : Int63.t;
+}
 
 let ctx ~length =
   (* FIXME: make it work for SHA512 too *)
   let ctx = ref (Digestif.SHA256.init ()) in
-  let read = ref 0L in
+  let read = ref Int63.zero in
   { ctx; read; length }
 
 let with_digest ~ctx:{ ctx; read; length } flow =

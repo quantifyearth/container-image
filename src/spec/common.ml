@@ -83,12 +83,18 @@ let const_of_yojson const n = function
 
 (* TODO write a proper parserfor RFC 6838 *)
 type rfc_6838 = string [@@deriving yojson]
-type z = int64 [@@deriving yojson]
 
-let z_of_yojson n =
-  match z_of_yojson n with
+open Optint
+
+type y = int64 [@@deriving yojson]
+type z = Int63.t
+
+let z_to_yojson (z : z) = y_to_yojson (Int63.to_int64 z)
+
+let z_of_yojson n : (z, _) result =
+  match y_of_yojson n with
   | Error e -> Error e
-  | Ok n -> if n < 0L then Error "negative int" else Ok n
+  | Ok n -> if n < 0L then Error "negative int" else Ok (Int63.of_int64 n)
 
 let ( let* ) x f = match x with Ok x -> f x | Error e -> Error e
 let ( let+ ) x f = match x with Ok x -> Ok (f x) | Error e -> Error e
@@ -101,3 +107,5 @@ let json_of_string str =
   match Yojson.Safe.from_string str with
   | json -> Ok json
   | exception Yojson.Json_error str -> Error str
+
+module Int63 = Int63
