@@ -1,5 +1,5 @@
 (executable
- (public_name container-image)
+ (public_name image)
  (name main)
  (libraries
   container-image

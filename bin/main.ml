@@ -7,13 +7,6 @@ let all_tags =
     @@ info ~doc:"Download all tagged images in the repository"
          [ "a"; "all-tags" ])
 
-let disable_content_trust =
-  Arg.(
-    value
-    @@ flag
-    @@ info ~doc:"Skip image verification (default true)"
-         [ "disable-content-trust" ])
-
 let platform =
   Arg.(
     value
@@ -52,8 +45,8 @@ let https ~authenticator =
     in
     Tls_eio.client_of_flow ?host tls_config raw
 
-let run () all_tags disable_content_trust platform image =
-  ignore (all_tags, disable_content_trust, image);
+let fetch () all_tags platform image =
+  ignore all_tags;
   Eio_main.run @@ fun env ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let client =
@@ -69,18 +62,43 @@ let run () all_tags disable_content_trust platform image =
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   Container_image.fetch ~client ~cache ~domain_mgr ?platform image
 
+let list () =
+  Fmt.pr "📖 images:\n";
+  List.iter
+    (fun (r, t, i, c, s) -> Fmt.pr "%-25s %-25s %-16s %-14s %s\n" r t i c s)
+    [
+      ("REPOSITORY", "TAG", "IMAGE ID", "CREATED", "SIZE");
+      ( "ocaml/opam",
+        "ubuntu-20.04-ocaml-4.14",
+        "c583c0b61ae0",
+        "6 weeks ago",
+        "1.31GB" );
+    ]
+
 let version =
   match Build_info.V1.version () with
   | None -> "n/a"
   | Some v -> Build_info.V1.Version.to_string v
 
-let cmd =
+let fetch_cmd =
   Cmd.v
-    (Cmd.info "oci-image" ~version)
-    Term.(
-      const run $ setup $ all_tags $ disable_content_trust $ platform $ image)
+    (Cmd.info "fetch" ~version)
+    Term.(const fetch $ setup $ all_tags $ platform $ image)
+
+let list_term = Term.(const list $ setup)
+let list_cmd = Cmd.v (Cmd.info "list" ~version) list_term
+
+let cmd =
+  Cmd.group ~default:list_term (Cmd.info "image") [ fetch_cmd; list_cmd ]
 
 let () =
+  let () = Printexc.record_backtrace true in
   match Cmd.eval ~catch:false cmd with
-  | exception Failure s -> Fmt.pr "%s\n%!" s
   | i -> exit i
+  | (exception Failure s) | (exception Invalid_argument s) ->
+      Fmt.epr "\n%a %s\n%!" Fmt.(styled `Red string) "[ERROR]" s;
+      exit Cmd.Exit.cli_error
+  | exception e ->
+      Printexc.print_backtrace stderr;
+      Fmt.epr "\n%a\n%!" Fmt.exn e;
+      exit Cmd.Exit.some_error
