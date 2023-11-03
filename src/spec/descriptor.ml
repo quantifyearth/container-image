@@ -14,35 +14,6 @@ module Uri = struct
   let to_yojson u = `String (Uri.to_string u)
 end
 
-module Base64 : sig
-  type t [@@deriving yojson]
-
-  val of_raw : string -> t
-  val to_string : t -> (string, [ `Msg of string ]) result
-end = struct
-  type t = string
-
-  exception Break of string
-
-  let of_raw x = x
-  let break fmt = Fmt.kstr (fun s -> raise (Break s)) fmt
-
-  let assert_b64 = function
-    | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '+' | '/' | '=' -> ()
-    | c -> break "data: %c" c
-
-  let of_yojson = function
-    | `String s -> (
-        try
-          String.iter assert_b64 s;
-          Ok s
-        with Break e -> Error e)
-    | _ -> Error "urls"
-
-  let to_yojson u = `String u
-  let to_string u = Base64.decode u
-end
-
 type t = {
   media_type : Media_type.t; [@key "mediaType"]
   digest : Digest.t; [@key "digest"]
@@ -54,6 +25,21 @@ type t = {
   artifact_type : Content_type.t option; [@key "artifactType"] [@default None]
 }
 [@@deriving yojson]
+
+let v ?platform ?data ~media_type ~size digest =
+  let data =
+    match data with None -> None | Some d -> Some (Base64.encode d)
+  in
+  {
+    media_type;
+    size;
+    digest;
+    urls = [];
+    annotations = [];
+    data;
+    platform;
+    artifact_type = None;
+  }
 
 let pp ppf t = pp_json ppf (to_yojson t)
 let to_string = Fmt.to_to_string pp
@@ -77,11 +63,14 @@ let empty =
 let size t = t.size
 let digest t = t.digest
 
+let decoded_data t =
+  match t.data with None -> Error (`Msg "no data") | Some d -> Base64.decode d
+
 let check t =
   match t.data with
   | None -> Ok ()
   | Some data -> (
-      match Base64.to_string data with
+      match Base64.decode data with
       | Error e -> Error e
       | Ok data ->
           if t.size = Int63.of_int (String.length data) then

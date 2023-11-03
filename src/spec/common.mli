@@ -31,3 +31,13 @@ val const_of_yojson : 'a -> string -> Yojson.Safe.t -> ('a, string) result
 val pp_json : Yojson.Safe.t Fmt.t
 val ( / ) : Yojson.Safe.t -> string -> (Yojson.Safe.t, string) result
 val json_of_string : string -> (Yojson.Safe.t, string) result
+
+(** Base64 *)
+
+module Base64 : sig
+  type t [@@deriving yojson]
+
+  val of_raw : string -> t
+  val decode : t -> (string, [ `Msg of string ]) result
+  val encode : string -> t
+end

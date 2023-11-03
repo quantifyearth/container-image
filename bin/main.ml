@@ -45,6 +45,14 @@ let https ~authenticator =
     in
     Tls_eio.client_of_flow ?host tls_config raw
 
+let cache env =
+  let fs = Eio.Stdenv.fs env in
+  let xdg = Xdg.create ~env:Sys.getenv_opt () in
+  let root = Eio.Path.(fs / Xdg.cache_dir xdg / "container-image") in
+  let cache = Container_image.Cache.v root in
+  Container_image.Cache.init cache;
+  cache
+
 let fetch () all_tags platform image =
   ignore all_tags;
   Eio_main.run @@ fun env ->
@@ -54,17 +62,18 @@ let fetch () all_tags platform image =
       ~https:(Some (https ~authenticator:null_auth))
       (Eio.Stdenv.net env)
   in
-  let fs = Eio.Stdenv.fs env in
-  let xdg = Xdg.create ~env:Sys.getenv_opt () in
-  let root = Eio.Path.(fs / Xdg.cache_dir xdg / "container-image") in
-  let cache = Container_image.Cache.v root in
-  Container_image.Cache.init cache;
+  let cache = cache env in
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   Container_image.fetch ~client ~cache ~domain_mgr ?platform image
 
 let list () =
   Fmt.pr "📖 images:\n";
-  List.iter
+  Eio_main.run @@ fun env ->
+  let cache = cache env in
+  let images = Container_image.list ~cache in
+  List.iter (fun image -> Fmt.pr "%a\n%!" Container_image.Image.pp image) images
+
+(*
     (fun (r, t, i, c, s) -> Fmt.pr "%-25s %-25s %-16s %-14s %s\n" r t i c s)
     [
       ("REPOSITORY", "TAG", "IMAGE ID", "CREATED", "SIZE");
@@ -74,7 +83,7 @@ let list () =
         "6 weeks ago",
         "1.31GB" );
     ]
-
+   *)
 let version =
   match Build_info.V1.version () with
   | None -> "n/a"
@@ -99,6 +108,6 @@ let () =
       Fmt.epr "\n%a %s\n%!" Fmt.(styled `Red string) "[ERROR]" s;
       exit Cmd.Exit.cli_error
   | exception e ->
-      Printexc.print_backtrace stderr;
+      (*      Printexc.print_backtrace stderr; *)
       Fmt.epr "\n%a\n%!" Fmt.exn e;
       exit Cmd.Exit.some_error

@@ -9,5 +9,6 @@
   tls-eio
   astring
   optint
+  tar-eio
   decompress.gz
   mirage-crypto-rng-eio))

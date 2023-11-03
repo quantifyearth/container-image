@@ -6,7 +6,15 @@ type t = { root : [ `Dir ] Eio.Path.t }
 let v root = { root }
 let ( / ) = Eio.Path.( / )
 let mkdirs dir = Eio.Path.mkdirs ~exists_ok:true ~perm:0o700 dir
-let init t = mkdirs (t.root / "blobs" / "sha256")
+
+let mkdir_parent file =
+  match Eio.Path.split file with
+  | None -> ()
+  | Some (parent, _) -> mkdirs parent
+
+let init t =
+  mkdirs (t.root / "blobs" / "sha256");
+  mkdirs (t.root / "manifests")
 
 module Blob = struct
   let file t digest =
@@ -22,16 +30,25 @@ module Blob = struct
     if broken then Eio.Path.unlink file;
     not broken
 
-  let add ~sw t digest body =
+  let add_fd ~sw t digest body =
     let file = file t digest in
-    let () =
-      match Eio.Path.split file with
-      | None -> ()
-      | Some (parent, _) -> mkdirs parent
-    in
+    mkdir_parent file;
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
     try
       Flow.copy body dst;
+      Eio.Flow.close dst
+    with e ->
+      Eio.Flow.close dst;
+      Eio.Path.unlink file;
+      raise e
+
+  let add_string ~sw t digest body =
+    let file = file t digest in
+    mkdir_parent file;
+    let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
+    let body = Eio.Flow.string_source body in
+    try
+      Eio.Flow.copy body dst;
       Eio.Flow.close dst
     with e ->
       Eio.Flow.close dst;
@@ -48,10 +65,26 @@ module Blob = struct
 end
 
 module Manifest = struct
+  type v =
+    [ `Docker_manifest of Manifest.Docker.t
+    | `Docker_manifest_list of Manifest_list.t ]
+
   let file t image =
     let org = Image.org image in
     let name = Image.name image in
-    Eio.Path.(t.root / "manifest" / org / name)
+    Eio.Path.(t.root / "manifests" / org / name)
+
+  let list t =
+    let dir = Eio.Path.(t.root / "manifests") in
+    let orgs = Eio.Path.read_dir dir in
+    let orgs =
+      Eio.Fiber.List.map
+        (fun org ->
+          let names = Eio.Path.read_dir Eio.Path.(dir / org) in
+          List.map (fun name -> Image.v (org ^ "/" ^ name)) names)
+        orgs
+    in
+    List.concat orgs
 
   let exists t image = Eio.Path.is_file (file t image)
 
@@ -63,14 +96,36 @@ module Manifest = struct
   let ( let* ) x f = match x with Ok x -> f x | Error e -> Error e
   let ( let+ ) x f = match x with Ok x -> Ok (f x) | Error e -> Error e
 
-  exception Invalid_descriptor of Image.t * string
+  exception Invalid_descriptor of Image.t * string * string
   exception Invalid_media_type of Image.t * Media_type.t
 
-  let add ~sw t image descriptor =
+  let add ~sw t image m =
     let file = file t image in
-    let src = Descriptor.to_string descriptor in
+    mkdir_parent file;
+    let d =
+      match m with
+      | `Docker_manifest m -> Manifest.Docker.to_descriptor m
+      | `Docker_manifest_list l -> Manifest_list.to_descriptor l
+    in
+    let src = Descriptor.to_string d in
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
     Eio.Flow.copy_string src dst
+
+  let resolve image d =
+    let media_type = Descriptor.media_type d in
+    match Descriptor.decoded_data d with
+    | Error (`Msg e) -> raise (Invalid_descriptor (image, "resolve/1", e))
+    | Ok str -> (
+        let r =
+          let+ blob = B.of_string ~media_type str in
+          match B.v blob with
+          | Docker (Image_manifest m) -> `Docker_manifest m
+          | Docker (Image_manifest_list l) -> `Docker_manifest_list l
+          | _ -> raise (Invalid_media_type (image, media_type))
+        in
+        match r with
+        | Ok r -> r
+        | Error (`Msg e) -> raise (Invalid_descriptor (image, "resolve/2", e)))
 
   let get t image =
     let file = file t image in
@@ -79,20 +134,7 @@ module Manifest = struct
       let* json = json_of_string str in
       Descriptor.of_yojson json
     in
-    match r with Ok d -> d | Error e -> raise (Invalid_descriptor (image, e))
-
-  let resolve t image =
-    let d = get t image in
-    let media_type = Descriptor.media_type d in
-    let str = Blob.get_string t (Descriptor.digest d) in
-    let r =
-      let+ blob = B.of_string ~media_type str in
-      match B.v blob with
-      | Docker (Image_manifest m) -> `Docker_manifest m
-      | Docker (Image_manifest_list l) -> `Docker_manifest_list l
-      | _ -> raise (Invalid_media_type (image, media_type))
-    in
     match r with
-    | Ok r -> r
-    | Error (`Msg e) -> raise (Invalid_descriptor (image, e))
+    | Ok d -> resolve image d
+    | Error e -> raise (Invalid_descriptor (image, "get/1", e))
 end

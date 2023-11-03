@@ -9,21 +9,21 @@ val init : t -> unit
 module Blob : sig
   val exists : t -> size:Int63.t -> Digest.t -> bool
 
-  val add :
+  val add_fd :
     sw:Eio.Switch.t -> t -> Digest.t -> Eio.Flow.source_ty Flow.t -> unit
 
-  val get_string : t -> Digest.t -> string
   val get_fd : sw:Eio.Switch.t -> t -> Digest.t -> Eio.File.ro_ty Eio.Resource.t
+  val add_string : sw:Eio.Switch.t -> t -> Digest.t -> string -> unit
+  val get_string : t -> Digest.t -> string
 end
 
 module Manifest : sig
-  val exists : t -> Image.t -> bool
-  val get : t -> Image.t -> Descriptor.t
-  val add : sw:Eio.Switch.t -> t -> Image.t -> Descriptor.t -> unit
-
-  val resolve :
-    t ->
-    Image.t ->
+  type v =
     [ `Docker_manifest of Manifest.Docker.t
     | `Docker_manifest_list of Manifest_list.t ]
+
+  val exists : t -> Image.t -> bool
+  val get : t -> Image.t -> v
+  val add : sw:Eio.Switch.t -> t -> Image.t -> v -> unit
+  val list : t -> Image.t list
 end

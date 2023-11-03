@@ -109,3 +109,28 @@ let json_of_string str =
   | exception Yojson.Json_error str -> Error str
 
 module Int63 = Int63
+
+module Base64 = struct
+  type t = string
+
+  exception Break of string
+
+  let of_raw x = x
+  let break fmt = Fmt.kstr (fun s -> raise (Break s)) fmt
+
+  let assert_b64 = function
+    | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '+' | '/' | '=' -> ()
+    | c -> break "data: %c" c
+
+  let of_yojson = function
+    | `String s -> (
+        try
+          String.iter assert_b64 s;
+          Ok s
+        with Break e -> Error e)
+    | _ -> Error "urls"
+
+  let to_yojson u = `String u
+  let decode u = Base64.decode u
+  let encode u = Base64.encode_string u
+end

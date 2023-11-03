@@ -29,5 +29,4 @@ val with_progress :
   Eio.Flow.source_ty Eio.Resource.t ->
   Eio.Flow.source_ty Eio.Resource.t
 
-val with_gzip :
-  Eio.Flow.source_ty Eio.Resource.t -> Eio.Flow.source_ty Eio.Resource.t
+val with_gzip : 'a Eio.Flow.source -> Eio.Flow.source_ty Eio.Resource.t

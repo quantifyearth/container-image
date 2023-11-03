@@ -118,6 +118,7 @@ let with_gzip flow =
   let i = De.bigstring_create De.io_buffer_size in
   let o = De.bigstring_create De.io_buffer_size in
   let decoder = Gz.Inf.decoder `Manual ~o in
+  let flow = (flow :> Eio.Flow.source_ty Eio.Resource.t) in
   Eio.Resource.T (Gzip.{ flow; decoder; i; o; state = Read }, gzip_handler)
 
 let source ~progress ~length ~digest flow =
