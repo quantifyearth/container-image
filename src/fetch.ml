@@ -144,10 +144,6 @@ let get_blob ~sw t d =
   in
   Cache.Blob.get_fd ~sw t.cache digest
 
-let pp_manifest ppf = function
-  | `Docker_manifest m -> Manifest.Docker.pp ppf m
-  | `Docker_manifest_list m -> Manifest_list.pp ppf m
-
 let manifest_of_string ~media_type str =
   match Manifest.of_string ~media_type str with
   | Ok m -> m
@@ -255,6 +251,5 @@ let fetch ?platform ~cache ~client ~domain_mgr image =
 
   Eio.Switch.run (fun sw ->
       let root = get_root_manifest t ~sw in
-      Fmt.epr "XXX root=%a\n%!" pp_manifest root;
       fetch_manifest ~sw ?platform root);
   Display.finalise display
