@@ -114,6 +114,7 @@ let () =
   match Cmd.eval ~catch:false cmd with
   | i -> exit i
   | (exception Failure s) | (exception Invalid_argument s) ->
+      (*      Printexc.print_backtrace stderr; *)
       Fmt.epr "\n%a %s\n%!" Fmt.(styled `Red string) "[ERROR]" s;
       exit Cmd.Exit.cli_error
   | exception e ->

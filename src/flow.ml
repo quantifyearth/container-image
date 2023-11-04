@@ -58,10 +58,9 @@ module Gzip = struct
   let rec single_read t buf =
     match t.state with
     | Flush rem ->
-        let io_len = De.io_buffer_size in
-        let off = io_len - rem in
-        let len = min io_len (Cstruct.length buf) in
-        Cstruct.blit (Cstruct.of_bigarray ~off t.o) 0 buf 0 len;
+        let off = De.bigstring_length t.o - rem in
+        let len = min rem (Cstruct.length buf) in
+        Cstruct.blit (Cstruct.of_bigarray t.o) off buf 0 len;
         let rem = rem - len in
         if rem = 0 then (
           let decoder = Gz.Inf.flush t.decoder in
@@ -77,7 +76,7 @@ module Gzip = struct
             t.decoder <- decoder;
             single_read t buf
         | `Flush decoder ->
-            t.state <- Flush (De.io_buffer_size - Gz.Inf.dst_rem decoder);
+            t.state <- Flush (De.bigstring_length t.o - Gz.Inf.dst_rem decoder);
             single_read t buf
         | `Malformed err -> Fmt.failwith "Gzip.single_read: Error %s" err
         | `End decoder ->

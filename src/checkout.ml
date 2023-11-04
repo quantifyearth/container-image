@@ -3,7 +3,9 @@ open Container_image_spec
 let checkout_layer ~sw ~cache layer =
   let file = Cache.Blob.get_fd ~sw cache layer in
   let layer = Flow.with_gzip file in
+  Fmt.epr "XXX LIST START\n%!";
   let files = Tar_eio.Archive.list layer in
+  Fmt.epr "XXX LIST OK\n%!";
   List.iter
     (fun file ->
       let file = file.Tar.Header.file_name in
@@ -34,5 +36,5 @@ let checkout ~cache i =
             | Error (`Msg e) -> failwith e)
           ds
       in
-      Eio.Fiber.List.iter (checkout_manifest ~sw ~cache) ms
+      List.iter (checkout_manifest ~sw ~cache) ms
   | `Docker_manifest m -> checkout_manifest ~sw ~cache m
