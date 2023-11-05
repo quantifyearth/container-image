@@ -5,10 +5,9 @@
   container-image.spec
   progress
   cohttp-eio
-  eio_main
   tls-eio
   astring
   optint
-  tar-eio
+  tar-eio.gz
   decompress.gz
   mirage-crypto-rng-eio))

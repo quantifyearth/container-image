@@ -3,6 +3,7 @@
  (name main)
  (libraries
   container-image
+  eio_main
   xdg
   cmdliner
   logs
