@@ -166,32 +166,31 @@ let manifest_of_string ~media_type str =
 
 (* NOTE: we inline the data inside that manifest descriptor in the cache *)
 let get_root_manifest ~sw t =
-  let bar =
-    let color = Display.next_color () in
-    let name =
-      "manifest:"
-      ^
-      match (Image.tag t.image, Image.digest t.image) with
-      | Some t, None -> t
-      | _, Some d -> Digest.encoded_hash d
-      | None, None -> "latest"
-    in
+  let go () =
+    let bar =
+      let color = Display.next_color () in
+      let name =
+        "manifest:"
+        ^
+        match (Image.tag t.image, Image.digest t.image) with
+        | Some t, None -> t
+        | _, Some d -> Digest.encoded_hash d
+        | None, None -> "latest"
+      in
 
-    Display.line ~color ~total:(Int63.of_int 100) name
-  in
-  Display.with_line ~display:t.display bar @@ fun r ->
-  if Cache.Manifest.exists t.cache t.image then (
-    Progress.Reporter.report r (Int63.of_int 100);
-    Cache.Manifest.get t.cache t.image)
-  else
+      Display.line ~color ~total:(Int63.of_int 100) name
+    in
+    Display.with_line ~display:t.display bar @@ fun r ->
     let progress i = Progress.Reporter.report r (Int63.of_int i) in
     let media_type, fd =
       API.get_manifest t.client ~progress ~sw ~token:t.token t.image
     in
     let str = Flow.read_all fd in
     let m = manifest_of_string ~media_type str in
-    Cache.Manifest.add ~sw t.cache t.image m;
-    m
+    Cache.Manifest.add ~sw t.cache t.image m
+  in
+  Cache.Manifest.if_exists t.cache t.image ~else_:go;
+  Cache.Manifest.get t.cache t.image
 
 (* manifest are stored in the blob store *)
 let get_manifest ?(show = false) ~sw t d =

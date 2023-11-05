@@ -27,6 +27,8 @@ type t =
   | `OCI_index of Index.t
   | `OCI_manifest of OCI.t ]
 
+val to_string : t -> string
+
 val of_string :
   media_type:Media_type.t -> string -> (t, [ `Msg of string ]) result
 

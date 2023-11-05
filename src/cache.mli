@@ -24,7 +24,9 @@ module Blob : sig
 end
 
 module Manifest : sig
-  val exists : t -> Image.t -> bool
+  val if_exists :
+    t -> ?then_:(unit -> unit) -> ?else_:(unit -> unit) -> Image.t -> unit
+
   val get : t -> Image.t -> Manifest.t
   val add : sw:Eio.Switch.t -> t -> Image.t -> Manifest.t -> unit
   val list : t -> Image.t list

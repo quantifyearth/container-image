@@ -25,49 +25,55 @@ let with_lock lock fn =
   let finally () = Eio.Mutex.unlock lock in
   Fun.protect ~finally fn
 
+let task path = Eio.Path.native_exn path
+
+let remove_task t path =
+  let task = task path in
+  with_lock t.lock (fun () ->
+      match Hashtbl.find_opt t.pending task with
+      | None -> ()
+      | Some l ->
+          Eio.Mutex.unlock l;
+          Hashtbl.remove t.pending task)
+
+let find_and_add_task t ?size path =
+  let task = task path in
+  with_lock t.lock (fun () ->
+      match Hashtbl.find_opt t.pending task with
+      | Some l -> `Pending l
+      | None ->
+          let exists = Eio.Path.is_file path in
+          let correct_size =
+            match size with
+            | None -> true
+            | Some size -> (Eio.Path.stat ~follow:true path).size = size
+          in
+          if exists && correct_size then `Already_exists
+          else if exists then (
+            (* broken file, delete it from the cache *)
+            Eio.Path.unlink path;
+            `Fresh)
+          else `Fresh)
+
+let if_exists t ?size ?(then_ = Fun.id) ?(else_ = Fun.id) file =
+  match find_and_add_task t ?size file with
+  | `Already_exists -> then_ ()
+  | `Fresh ->
+      let finally () = remove_task t file in
+      Fun.protect ~finally else_
+  | `Pending l ->
+      let finally () = Eio.Mutex.unlock l in
+      Eio.Mutex.lock l;
+      Fun.protect ~finally then_
+
 module Blob = struct
-  let task path = Eio.Path.native_exn path
-
-  let remove_task t path =
-    let task = task path in
-    with_lock t.lock (fun () ->
-        match Hashtbl.find_opt t.pending task with
-        | None -> ()
-        | Some l ->
-            Eio.Mutex.unlock l;
-            Hashtbl.remove t.pending task)
-
-  let find_and_add_task t ~size path =
-    let task = task path in
-    with_lock t.lock (fun () ->
-        match Hashtbl.find_opt t.pending task with
-        | Some l -> `Pending l
-        | None ->
-            let exists = Eio.Path.is_file path in
-            if exists && (Eio.Path.stat ~follow:true path).size = size then
-              `Already_exists
-            else if exists then (
-              (* broken file, delete it from the cache *)
-              Eio.Path.unlink path;
-              `Fresh)
-            else `Fresh)
-
   let file t digest =
     let algo = Digest.string_of_algorithm (Digest.algorithm digest) in
     let hash = Digest.encoded_hash digest in
     Eio.Path.(t.root / "blobs" / algo / hash)
 
-  let if_exists t ~size ?(then_ = Fun.id) ?(else_ = Fun.id) digest =
-    let file = file t digest in
-    match find_and_add_task t ~size file with
-    | `Already_exists -> then_ ()
-    | `Fresh ->
-        let finally () = remove_task t file in
-        Fun.protect ~finally else_
-    | `Pending l ->
-        let finally () = Eio.Mutex.unlock l in
-        Eio.Mutex.lock l;
-        Fun.protect ~finally then_
+  let if_exists t ~size ?then_ ?else_ digest =
+    if_exists t ~size ?then_ ?else_ (file t digest)
 
   let add_fd ~sw t digest body =
     let file = file t digest in
@@ -109,6 +115,9 @@ module Manifest = struct
     let name = Image.name image in
     Eio.Path.(t.root / "manifests" / org / name)
 
+  let if_exists t ?then_ ?else_ digest =
+    if_exists t ?then_ ?else_ (file t digest)
+
   let list t =
     let dir = Eio.Path.(t.root / "manifests") in
     let orgs = Eio.Path.read_dir dir in
@@ -120,8 +129,6 @@ module Manifest = struct
         orgs
     in
     List.concat orgs
-
-  let exists t image = Eio.Path.is_file (file t image)
 
   let json_of_string str =
     match Yojson.Safe.from_string str with
@@ -138,6 +145,7 @@ module Manifest = struct
     let file = file t image in
     mkdir_parent file;
     let d = Manifest.to_descriptor m in
+    assert (Descriptor.decoded_data d = Ok (Manifest.to_string m));
     let src = Descriptor.to_string d in
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
     Eio.Flow.copy_string src dst

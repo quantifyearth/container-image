@@ -141,6 +141,12 @@ let of_string ~media_type body =
   | OCI Image_manifest -> wrap (oci_manifest body)
   | _ -> err ()
 
+let to_string = function
+  | `Docker_manifest m -> Docker.to_string m
+  | `Docker_manifest_list l -> Manifest_list.to_string l
+  | `OCI_index i -> Index.to_string i
+  | `OCI_manifest m -> OCI.to_string m
+
 let to_descriptor = function
   | `Docker_manifest m -> Docker.to_descriptor m
   | `Docker_manifest_list l -> Manifest_list.to_descriptor l
