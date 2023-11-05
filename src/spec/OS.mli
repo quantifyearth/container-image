@@ -17,6 +17,7 @@ type t =
   | Solaris
   | Wasip1
   | Windows
+  | Unknown
 [@@deriving yojson]
 
 val pp : t Fmt.t

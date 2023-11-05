@@ -52,9 +52,17 @@ let line_of_descriptor d =
     let digest = Digest.encoded_hash (Descriptor.digest d) in
     let ty =
       match Descriptor.media_type d with
-      | Docker Image_manifest -> "manifest:"
-      | Docker Image_config -> "config:"
-      | Docker _ -> "layer:"
+      | Docker Image_manifest_list | OCI Image_index -> "index:"
+      | Docker Image_manifest | OCI Image_manifest -> "manifest:"
+      | OCI Image_config | Docker Image_config -> "config:"
+      | OCI
+          ( Layer_tar | Layer_tar_gzip | Layer_tar_zstd
+          | Layer_non_distributable_tar | Layer_non_distributable_tar_gzip
+          | Layer_non_distributable_tar_zstd )
+      | Docker (Layer_tar_gzip | Layer_non_distributable_tar_gzip) ->
+          "layer:"
+      | Docker Plugin_config -> "plugin:"
+      | OCI Trust -> "trust:"
       | _ -> "?:"
     in
     ty ^ digest

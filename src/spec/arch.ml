@@ -15,6 +15,7 @@ type t =
   | Ppc64le
   | Riscv64
   | S390x
+  | Unknown
 
 let to_string = function
   | X386 -> "386"
@@ -31,6 +32,7 @@ let to_string = function
   | Ppc64le -> "ppc64le"
   | Riscv64 -> "riscv64"
   | S390x -> "s390x"
+  | Unknown -> "unknown"
 
 let of_string = function
   | "386" -> Ok X386
@@ -47,17 +49,23 @@ let of_string = function
   | "ppc64le" -> Ok Ppc64le
   | "riscv64" -> Ok Riscv64
   | "s390x" -> Ok S390x
+  | "unknown" -> Ok Unknown
   | s -> error_msg "Arch.of_string: invalid string (%S)" s
 
 let to_yojson a = `String (to_string a)
 let of_yojson = function `String s -> unwrap (of_string s) | _ -> Error "arch"
 let pp = Fmt.of_to_string to_string
 
-type variant = V6 | V7 | V8
+type variant = V5 | V6 | V7 | V8
 
-let variant_to_string = function V6 -> "v6" | V7 -> "v7" | V8 -> "v8"
+let variant_to_string = function
+  | V5 -> "v5"
+  | V6 -> "v6"
+  | V7 -> "v7"
+  | V8 -> "v8"
 
 let variant_of_string = function
+  | "v5" -> Ok V5
   | "v6" -> Ok V6
   | "v7" -> Ok V7
   | "v8" -> Ok V8

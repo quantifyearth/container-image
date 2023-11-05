@@ -44,6 +44,7 @@ module OCI = struct
     let+ c = Config.OCI.of_yojson json in
     Image_config c
 
+  let trust str = Ok (Raw str) (* TODO *)
   let layer str = Ok (Raw str) (* TODO *)
 
   let of_string ty str =
@@ -62,6 +63,7 @@ module OCI = struct
     | Layer_non_distributable_tar -> layer str
     | Layer_non_distributable_tar_gzip -> layer str
     | Layer_non_distributable_tar_zstd -> layer str
+    | Trust -> trust str
     | Other _ -> Ok (Raw str)
 end
 

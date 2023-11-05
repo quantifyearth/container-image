@@ -16,6 +16,7 @@ type t =
   | Solaris
   | Wasip1
   | Windows
+  | Unknown
 
 let to_string = function
   | Aix -> "aix"
@@ -33,6 +34,7 @@ let to_string = function
   | Solaris -> "solaris"
   | Wasip1 -> "wasip1"
   | Windows -> "windows"
+  | Unknown -> "unknown"
 
 let of_string = function
   | "aix" -> Ok Aix
@@ -50,6 +52,7 @@ let of_string = function
   | "solaris" -> Ok Solaris
   | "wasip1" -> Ok Wasip1
   | "windows" -> Ok Windows
+  | "unknown" -> Ok Unknown
   | s -> error_msg "OS.of_string: invalid string (%S)" s
 
 let to_yojson os = `String (to_string os)

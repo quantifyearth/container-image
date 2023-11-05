@@ -14,6 +14,7 @@ module OCI : sig
     | Layer_non_distributable_tar
     | Layer_non_distributable_tar_gzip
     | Layer_non_distributable_tar_zstd
+    | Trust
     | Other of Content_type.t
 
   val to_string : t -> string

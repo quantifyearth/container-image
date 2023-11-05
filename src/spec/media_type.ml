@@ -15,6 +15,7 @@ module OCI = struct
     | Layer_non_distributable_tar
     | Layer_non_distributable_tar_gzip
     | Layer_non_distributable_tar_zstd
+    | Trust
     | Other of Content_type.t
 
   let of_string = function
@@ -33,6 +34,7 @@ module OCI = struct
         Ok Layer_non_distributable_tar_gzip
     | "application/vnd.oci.image.layer.nondistributable.v1.tar+zstd" ->
         Ok Layer_non_distributable_tar_zstd
+    | "application/vnd.in-toto+json" -> Ok Trust
     | s -> (
         match Content_type.of_string s with
         | Ok s -> Ok (Other s)
@@ -54,6 +56,7 @@ module OCI = struct
         "application/vnd.oci.image.layer.nondistributable.v1.tar+gzip"
     | Layer_non_distributable_tar_zstd ->
         "application/vnd.oci.image.layer.nondistributable.v1.tar+zstd"
+    | Trust -> "application/vnd.in-toto+json"
     | Other e -> Content_type.to_string e
 end
 

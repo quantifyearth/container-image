@@ -15,19 +15,15 @@ let bytes_to_size ?(decimals = 2) ppf = function
 let checkout_layer ~sw ~cache layer =
   let fd = Cache.Blob.get_fd ~sw cache layer in
   let fd = Tar_eio_gz.of_source fd in
-  let c = ref 0 in
   Tar_eio_gz.fold
-    (fun _hdr () ->
-      incr c;
-      if !c mod 100 = 0 then Printf.printf ".%!"
-        (* Format.printf "%s (%s, %a)\n%!" hdr.Tar.Header.file_name
-           (Tar.Header.Link.to_string hdr.link_indicator)
-           (bytes_to_size ~decimals:2)
-           hdr.Tar.Header.file_size; *))
+    (fun hdr () ->
+      Fmt.pr "%s (%s, %a)\n%!" hdr.Tar.Header.file_name
+        (Tar.Header.Link.to_string hdr.link_indicator)
+        (bytes_to_size ~decimals:2)
+        hdr.Tar.Header.file_size)
     fd ()
 
-let checkout_manifest ~sw ~cache m =
-  let layers = Manifest.Docker.layers m in
+let checkout_layers ~sw ~cache layers =
   List.iter
     (fun layer ->
       let d = Descriptor.digest layer in
@@ -35,20 +31,48 @@ let checkout_manifest ~sw ~cache m =
       checkout_layer ~sw ~cache d)
     layers
 
+let checkout_docker_manifest ~sw ~cache m =
+  checkout_layers ~sw ~cache (Manifest.Docker.layers m)
+
+let checkout_oci_manifest ~sw ~cache m =
+  checkout_layers ~sw ~cache (Manifest.OCI.layers m)
+
+let checkout_docker_manifests ~sw ~cache ds =
+  let ms =
+    List.map
+      (fun d ->
+        let digest = Descriptor.digest d in
+        let str = Cache.Blob.get_string cache digest in
+        match Manifest.Docker.of_string str with
+        | Ok m -> m
+        | Error (`Msg e) -> failwith e)
+      ds
+  in
+  List.iter (checkout_docker_manifest ~sw ~cache) ms
+
+let checkout_oci_manifests ~sw ~cache ds =
+  let ms =
+    List.map
+      (fun d ->
+        let digest = Descriptor.digest d in
+        let str = Cache.Blob.get_string cache digest in
+        match Manifest.OCI.of_string str with
+        | Ok m -> m
+        | Error (`Msg e) -> failwith e)
+      ds
+  in
+  List.iter (checkout_oci_manifest ~sw ~cache) ms
+
+let checkout_docker_manifest_list ~sw ~cache l =
+  checkout_docker_manifests ~sw ~cache (Manifest_list.manifests l)
+
+let checkout_oci_index ~sw ~cache i =
+  checkout_oci_manifests ~sw ~cache (Index.manifests i)
+
 let checkout ~cache i =
   Eio.Switch.run @@ fun sw ->
   match Cache.Manifest.get cache i with
-  | `Docker_manifest_list m ->
-      let ds = Manifest_list.manifests m in
-      let ms =
-        List.map
-          (fun d ->
-            let digest = Descriptor.digest d in
-            let str = Cache.Blob.get_string cache digest in
-            match Manifest.Docker.of_string str with
-            | Ok m -> m
-            | Error (`Msg e) -> failwith e)
-          ds
-      in
-      List.iter (checkout_manifest ~sw ~cache) ms
-  | `Docker_manifest m -> checkout_manifest ~sw ~cache m
+  | `Docker_manifest m -> checkout_docker_manifest ~sw ~cache m
+  | `Docker_manifest_list m -> checkout_docker_manifest_list ~sw ~cache m
+  | `OCI_index i -> checkout_oci_index ~sw ~cache i
+  | `OCI_manifest m -> checkout_oci_manifest ~sw ~cache m

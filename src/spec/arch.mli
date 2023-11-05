@@ -16,12 +16,13 @@ type t =
   | Ppc64le
   | Riscv64
   | S390x
+  | Unknown
 [@@deriving yojson]
 
 val pp : t Fmt.t
 val of_string : string -> (t, [ `Msg of string ]) result
 
-type variant = V6 | V7 | V8 [@@deriving yojson]
+type variant = V5 | V6 | V7 | V8 [@@deriving yojson]
 
 val variant_of_string : string -> (variant, [ `Msg of string ]) result
 val pp_variant : variant Fmt.t

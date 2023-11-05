@@ -2,8 +2,11 @@ module OCI : sig
   type t [@@deriving yojson]
 
   val pp : t Fmt.t
+  val of_string : string -> (t, [ `Msg of string ]) result
   val to_string : t -> string
   val media_type : t -> Media_type.OCI.t
+  val config : t -> Descriptor.t
+  val layers : t -> Descriptor.t list
 end
 
 module Docker : sig
@@ -19,7 +22,12 @@ module Docker : sig
 end
 
 type t =
-  [ `Docker_manifest of Docker.t | `Docker_manifest_list of Manifest_list.t ]
+  [ `Docker_manifest of Docker.t
+  | `Docker_manifest_list of Manifest_list.t
+  | `OCI_index of Index.t
+  | `OCI_manifest of OCI.t ]
 
 val of_string :
   media_type:Media_type.t -> string -> (t, [ `Msg of string ]) result
+
+val to_descriptor : t -> Descriptor.t

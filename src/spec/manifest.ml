@@ -21,6 +21,13 @@ module OCI = struct
   let pp ppf t = pp_json ppf (to_yojson t)
   let to_string = Fmt.to_to_string pp
   let media_type _ = Media_type.OCI.Image_manifest
+  let layers t = t.layers
+  let config t = t.config
+
+  let of_string s =
+    wrap
+    @@ let* json = json_of_string s in
+       of_yojson json
 
   exception Break of string
 
@@ -53,6 +60,13 @@ module OCI = struct
           check t;
           Ok t
         with Break e -> Error e)
+
+  let to_descriptor t =
+    let str = to_string t in
+    let digest = Digest.digest_string SHA256 str in
+    let size = Int63.of_int (String.length str) in
+    let media_type = Media_type.OCI Image_manifest in
+    Descriptor.v ~media_type ~data:str ~size digest
 end
 
 module Docker = struct
@@ -90,24 +104,45 @@ module Docker = struct
 end
 
 type t =
-  [ `Docker_manifest of Docker.t | `Docker_manifest_list of Manifest_list.t ]
+  [ `Docker_manifest of Docker.t
+  | `Docker_manifest_list of Manifest_list.t
+  | `OCI_index of Index.t
+  | `OCI_manifest of OCI.t ]
 
-let image_manifest str =
+let docker_manifest str =
   let* json = json_of_string str in
   let+ m = Docker.of_yojson json in
   `Docker_manifest m
 
-let image_manifest_list str =
+let docker_manifest_list str =
   let* json = json_of_string str in
   let+ m = Manifest_list.of_yojson json in
   `Docker_manifest_list m
 
+let oci_index str =
+  let* json = json_of_string str in
+  let+ m = Index.of_yojson json in
+  `OCI_index m
+
+let oci_manifest str =
+  let* json = json_of_string str in
+  let+ m = OCI.of_yojson json in
+  `OCI_manifest m
+
 let of_string ~media_type body =
   let err () =
-    Fmt.failwith "Manifest.of_string: invalide media-type: %s"
+    Fmt.failwith "Manifest.of_string: invalid media-type: %s"
       (Media_type.to_string media_type)
   in
   match media_type with
-  | Docker Image_manifest -> wrap (image_manifest body)
-  | Docker Image_manifest_list -> wrap (image_manifest_list body)
+  | Docker Image_manifest -> wrap (docker_manifest body)
+  | Docker Image_manifest_list -> wrap (docker_manifest_list body)
+  | OCI Image_index -> wrap (oci_index body)
+  | OCI Image_manifest -> wrap (oci_manifest body)
   | _ -> err ()
+
+let to_descriptor = function
+  | `Docker_manifest m -> Docker.to_descriptor m
+  | `Docker_manifest_list l -> Manifest_list.to_descriptor l
+  | `OCI_index i -> Index.to_descriptor i
+  | `OCI_manifest m -> OCI.to_descriptor m

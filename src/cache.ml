@@ -98,11 +98,7 @@ module Manifest = struct
   let add ~sw t image m =
     let file = file t image in
     mkdir_parent file;
-    let d =
-      match m with
-      | `Docker_manifest m -> Manifest.Docker.to_descriptor m
-      | `Docker_manifest_list l -> Manifest_list.to_descriptor l
-    in
+    let d = Manifest.to_descriptor m in
     let src = Descriptor.to_string d in
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
     Eio.Flow.copy_string src dst
@@ -117,6 +113,8 @@ module Manifest = struct
           match B.v blob with
           | Docker (Image_manifest m) -> `Docker_manifest m
           | Docker (Image_manifest_list l) -> `Docker_manifest_list l
+          | OCI (Image_index i) -> `OCI_index i
+          | OCI (Image_manifest m) -> `OCI_manifest m
           | _ -> raise (Invalid_media_type (image, media_type))
         in
         match r with

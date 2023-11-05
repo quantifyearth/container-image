@@ -15,14 +15,14 @@ module API = struct
   }
 
   (* TODO: manage [Range] headers *)
-  let rec get client ~sw ?token ?(extra_headers = []) uri out =
+  let rec get client ~sw ?(accept = []) ?token uri out =
     Logs.debug (fun l -> l "GET %a\n%!" Uri.pp uri);
     let headers =
       Cohttp.Header.of_list
       @@ (match token with
          | Some token -> [ ("Authorization", "Bearer " ^ token) ]
          | None -> [])
-      @ extra_headers
+      @ List.map (fun m -> ("Accept", Media_type.to_string m)) accept
     in
     let resp, body = Cohttp_eio.Client.get ~headers client ~sw uri in
     let headers = Cohttp.Response.headers resp in
@@ -53,7 +53,7 @@ module API = struct
         match Cohttp.Header.get (Cohttp.Response.headers resp) "location" with
         | Some new_url ->
             let new_uri = Uri.of_string new_url in
-            get client ~sw ?token ~extra_headers new_uri out
+            get client ~sw ?token ~accept new_uri out
         | None -> Fmt.failwith "Redirect without location!")
     | err ->
         Fmt.failwith "@[<v2>%a error: %s@,%s@]" Uri.pp uri
@@ -72,19 +72,21 @@ module API = struct
     let name = Image.full_name image in
     let reference = Image.reference image in
     let uri = uri "%s/v2/%s/manifests/%s" registry_base name reference in
-    let extra_headers =
-      [
-        ("Accept", "application/vnd.docker.distribution.manifest.v2+json");
-        ("Accept", "application/vnd.docker.distribution.manifest.list.v2+json");
-        ("Accept", "application/vnd.docker.distribution.manifest.v1+json");
-      ]
-    in
     let out { content_length; content_type; content_digest; body; _ } =
       let length = get_content_length content_length in
       let digest = get_content_digest content_digest in
       (content_type, Flow.source ~progress ~length ~digest body)
     in
-    get client ~token ~sw ~extra_headers uri out
+    let accept =
+      Media_type.
+        [
+          Docker Image_manifest;
+          Docker Image_manifest_list;
+          OCI Image_index;
+          OCI Image_manifest;
+        ]
+    in
+    get client ~accept ~token ~sw uri out
 
   let get_blob client ~progress ~sw ~token image d =
     let size = Descriptor.size d in
@@ -204,7 +206,7 @@ let get_manifest ~sw t d =
   in
   manifest_of_string ~media_type str
 
-let fetch ?platform ~cache ~client ~domain_mgr image =
+let fetch ?platform ~cache ~client ~domain_mgr:_ image =
   let token = Eio.Switch.run @@ fun sw -> API.get_token client ~sw image in
   let display = Display.init_fetch ?platform image in
   let t = { token; display; cache; client; image } in
@@ -234,7 +236,7 @@ let fetch ?platform ~cache ~client ~domain_mgr image =
             let _layers =
               Eio.Fiber.List.map
                 (fun d ->
-                  Eio.Domain_manager.run domain_mgr @@ fun () ->
+                  (*Eio.Domain_manager.run domain_mgr @@ fun () -> *)
                   Eio.Switch.run @@ fun sw -> get_blob ~sw t d)
                 layers
             in
@@ -247,6 +249,31 @@ let fetch ?platform ~cache ~client ~domain_mgr image =
             let platforms = List.filter_map Descriptor.platform ds in
             l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
         Eio.Fiber.List.iter (fetch_manifest_descriptor ~sw) ds
+    | `OCI_index i ->
+        let ds = Index.manifests i in
+        Logs.info (fun l ->
+            let platforms = List.filter_map Descriptor.platform ds in
+            l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
+        Eio.Fiber.List.iter (fetch_manifest_descriptor ~sw) ds
+    | `OCI_manifest m -> (
+        let config = Manifest.OCI.config m in
+        match (my_platform, platform) with
+        | Some p, Some p' when p <> p' ->
+            (* Fmt.epr "XXX SKIP platform=%a\n%!" Platform.pp p'; *)
+            ()
+        | _ ->
+            let layers = Manifest.OCI.layers m in
+            let _config = get_blob ~sw t config in
+            let _layers =
+              Eio.Fiber.List.map
+                (fun d ->
+                  (*                  Eio.Domain_manager.run domain_mgr @@ fun () -> *)
+                  Eio.Switch.run @@ fun sw -> get_blob ~sw t d)
+                layers
+            in
+            (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
+            (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
+            ())
   in
 
   Eio.Switch.run (fun sw ->
