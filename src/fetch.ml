@@ -4,7 +4,6 @@ open Optint
 module API = struct
   let registry_base = "https://registry-1.docker.io"
   let auth_base = "https://auth.docker.io"
-  let auth_service = "registry.docker.io"
   let uri fmt = Fmt.kstr Uri.of_string fmt
 
   type response = {
@@ -14,9 +13,16 @@ module API = struct
     body : Eio.Flow.source_ty Eio.Resource.t;
   }
 
+  type verb = GET | POST
+
+  let pp_verb ppf t =
+    Fmt.string ppf (match t with GET -> "GET" | POST -> "POST")
+
+  let meth = function GET -> `GET | POST -> `POST
+
   (* TODO: manage [Range] headers *)
-  let rec get client ~sw ?(accept = []) ?token uri out =
-    Logs.debug (fun l -> l "GET %a\n%!" Uri.pp uri);
+  let rec call verb client ~sw ?(accept = []) ?token ?body uri out =
+    Logs.debug (fun l -> l "%a %a\n%!" pp_verb verb Uri.pp uri);
     let headers =
       Cohttp.Header.of_list
       @@ (match token with
@@ -24,7 +30,9 @@ module API = struct
          | None -> [])
       @ List.map (fun m -> ("Accept", Media_type.to_string m)) accept
     in
-    let resp, body = Cohttp_eio.Client.get ~headers client ~sw uri in
+    let resp, body =
+      Cohttp_eio.Client.call ~headers ?body client ~sw (meth verb) uri
+    in
     let headers = Cohttp.Response.headers resp in
     let content_type =
       match Cohttp.Header.get headers "Content-Type" with
@@ -53,12 +61,18 @@ module API = struct
         match Cohttp.Header.get (Cohttp.Response.headers resp) "location" with
         | Some new_url ->
             let new_uri = Uri.of_string new_url in
-            get client ~sw ?token ~accept new_uri out
+            call verb client ~sw ?token ~accept new_uri out
         | None -> Fmt.failwith "Redirect without location!")
     | err ->
         Fmt.failwith "@[<v2>%a error: %s@,%s@]" Uri.pp uri
           (Cohttp.Code.string_of_status err)
           (Eio.Flow.read_all body)
+
+  let get client ~sw ?accept ?token uri out =
+    call GET client ~sw ?accept ?token uri out
+
+  let post client ~sw ?accept ?token ?body uri out =
+    call POST client ~sw ?accept ?token ?body uri out
 
   let get_content_length = function
     | None -> failwith "missing content-length headers"
@@ -105,20 +119,38 @@ module API = struct
     in
     get client ~sw ~token uri out
 
-  let get_token client ~sw image =
+  type credential = { username : string; password : string }
+
+  let get_token client ~sw ?credentials image =
     let name = Image.full_name image in
-    let uri =
-      uri "%s/token?service=%s&scope=repository:%s:pull" auth_base auth_service
-        name
+    let queries =
+      [
+        ("service", [ "registry.docker.io" ]);
+        ("client_id", [ "image" ]);
+        ("scope", [ "repository:" ^ name ^ ":pull" ]);
+      ]
     in
+    let extra_queries =
+      match credentials with
+      | None -> []
+      | Some { username; password } ->
+          [
+            ("grant_type", [ "password" ]);
+            ("username", [ username ]);
+            ("password", [ password ]);
+          ]
+    in
+    let queries = Uri.encoded_of_query (queries @ extra_queries) in
+    let uri = uri "%s/token?%s" auth_base queries in
     let out { body; _ } =
-      match
-        Auth.of_yojson (Yojson.Safe.from_string (Eio.Flow.read_all body))
-      with
-      | Ok t -> t.token
+      let body = Eio.Flow.read_all body in
+      match Auth.of_yojson (Yojson.Safe.from_string body) with
+      | Ok t -> Auth.token t
       | Error e -> Fmt.failwith "@[<v2>%s parsing errors: %s@]" auth_base e
     in
-    get client ~sw uri out
+    match credentials with
+    | None -> get client ~sw uri out
+    | Some _ -> post client ~sw uri out
 end
 
 type t = {
@@ -222,9 +254,17 @@ let get_manifest ?(show = false) ~sw t d =
         aux (Progress.Reporter.report r))
   else aux ignore
 
-let fetch ?platform ~cache ~client ~domain_mgr:_ image =
-  let token = Eio.Switch.run @@ fun sw -> API.get_token client ~sw image in
+let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
   let display = Display.init_fetch ?platform image in
+  let credentials =
+    match (username, password) with
+    | None, None -> None
+    | Some u, Some p -> Some { API.username = u; password = p }
+    | _ -> invalid_arg "invalid credentials"
+  in
+  let token =
+    Eio.Switch.run @@ fun sw -> API.get_token client ~sw ?credentials image
+  in
   let t = { token; display; cache; client; image } in
   let platform =
     match platform with

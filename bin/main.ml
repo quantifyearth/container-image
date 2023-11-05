@@ -23,6 +23,18 @@ let image =
     @@ info ~doc:"Download an image from a registry" ~docv:"NAME[:TAG|@DIGEST]"
          [])
 
+let username =
+  Arg.(
+    value
+    @@ opt (some string) None
+    @@ info ~doc:"Username" ~docv:"STRING" [ "username"; "u" ])
+
+let password =
+  Arg.(
+    value
+    @@ opt (some string) None
+    @@ info ~doc:"Password" ~docv:"FILE" [ "password"; "p" ])
+
 let setup =
   let style_renderer = Fmt_cli.style_renderer () in
   Term.(
@@ -53,7 +65,7 @@ let cache env =
   Container_image.Cache.init cache;
   cache
 
-let fetch () all_tags platform image =
+let fetch () all_tags platform image username password =
   ignore all_tags;
   Eio_main.run @@ fun env ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
@@ -64,7 +76,8 @@ let fetch () all_tags platform image =
   in
   let cache = cache env in
   let domain_mgr = Eio.Stdenv.domain_mgr env in
-  Container_image.fetch ~client ~cache ~domain_mgr ?platform image
+  Container_image.fetch ~client ~cache ~domain_mgr ?platform ?username ?password
+    image
 
 let list () =
   Fmt.pr "📖 images:\n";
@@ -97,7 +110,8 @@ let version =
 let fetch_cmd =
   Cmd.v
     (Cmd.info "fetch" ~version)
-    Term.(const fetch $ setup $ all_tags $ platform $ image)
+    Term.(
+      const fetch $ setup $ all_tags $ platform $ image $ username $ password)
 
 let list_term = Term.(const list $ setup)
 let list_cmd = Cmd.v (Cmd.info "list" ~version) list_term
@@ -114,10 +128,10 @@ let () =
   match Cmd.eval ~catch:false cmd with
   | i -> exit i
   | (exception Failure s) | (exception Invalid_argument s) ->
-      (*      Printexc.print_backtrace stderr; *)
+      Printexc.print_backtrace stderr;
       Fmt.epr "\n%a %s\n%!" Fmt.(styled `Red string) "[ERROR]" s;
       exit Cmd.Exit.cli_error
   | exception e ->
-      (*      Printexc.print_backtrace stderr; *)
+      Printexc.print_backtrace stderr;
       Fmt.epr "\n%a\n%!" Fmt.exn e;
       exit Cmd.Exit.some_error

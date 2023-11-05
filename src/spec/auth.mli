@@ -1,1 +1,3 @@
-type t = { token : string } [@@deriving yojson { strict = false }]
+type t [@@deriving yojson { strict = false }]
+
+val token : t -> string

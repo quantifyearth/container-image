@@ -46,7 +46,8 @@ let find_and_add_task t ?size path =
           let correct_size =
             match size with
             | None -> true
-            | Some size -> (Eio.Path.stat ~follow:true path).size = size
+            | Some size ->
+                exists && (Eio.Path.stat ~follow:true path).size = size
           in
           if exists && correct_size then `Already_exists
           else if exists then (
