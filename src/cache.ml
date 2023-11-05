@@ -50,11 +50,13 @@ let find_and_add_task t ?size path =
                 exists && (Eio.Path.stat ~follow:true path).size = size
           in
           if exists && correct_size then `Already_exists
-          else if exists then (
-            (* broken file, delete it from the cache *)
-            Eio.Path.unlink path;
+          else
+            let l = Eio.Mutex.create () in
+            Eio.Mutex.lock l;
+            Hashtbl.add t.pending task l;
+            (* if broken file, delete it from the cache *)
+            if exists then Eio.Path.unlink path;
             `Fresh)
-          else `Fresh)
 
 let if_exists t ?size ?(then_ = Fun.id) ?(else_ = Fun.id) file =
   match find_and_add_task t ?size file with
