@@ -129,20 +129,32 @@ type t = {
   image : Image.t;
 }
 
-let progress reporter i = Progress.Reporter.report reporter i
-let progress_int reporter i = Progress.Reporter.report reporter (Int63.of_int i)
+let show_blob d =
+  match Descriptor.media_type d with
+  | OCI
+      ( Layer_tar | Layer_tar_gzip | Layer_tar_zstd
+      | Layer_non_distributable_tar | Layer_non_distributable_tar_gzip
+      | Layer_non_distributable_tar_zstd )
+  | Docker (Layer_tar_gzip | Layer_non_distributable_tar_gzip) ->
+      true
+  | _ -> false
 
 let get_blob ~sw t d =
   let size = Descriptor.size d in
   let digest = Descriptor.digest d in
-  let bar = Display.line_of_descriptor d in
-  Display.with_line ~display:t.display bar @@ fun r ->
-  let () =
-    if Cache.Blob.exists t.cache ~size digest then progress r size
+  let aux progress =
+    if Cache.Blob.exists t.cache ~size digest then progress size
     else
-      let progress = progress_int r in
+      let progress i = progress (Int63.of_int i) in
       let fd = API.get_blob t.client ~progress ~sw ~token:t.token t.image d in
       Cache.Blob.add_fd ~sw t.cache digest fd
+  in
+  let () =
+    if show_blob d then
+      let bar = Display.line_of_descriptor d in
+      Display.with_line ~display:t.display bar (fun r ->
+          aux (Progress.Reporter.report r))
+    else aux ignore
   in
   Cache.Blob.get_fd ~sw t.cache digest
 
@@ -168,10 +180,10 @@ let get_root_manifest ~sw t =
   in
   Display.with_line ~display:t.display bar @@ fun r ->
   if Cache.Manifest.exists t.cache t.image then (
-    progress_int r 100;
+    Progress.Reporter.report r (Int63.of_int 100);
     Cache.Manifest.get t.cache t.image)
   else
-    let progress = progress_int r in
+    let progress i = Progress.Reporter.report r (Int63.of_int i) in
     let media_type, fd =
       API.get_manifest t.client ~progress ~sw ~token:t.token t.image
     in
@@ -181,30 +193,35 @@ let get_root_manifest ~sw t =
     m
 
 (* manifest are stored in the blob store *)
-let get_manifest ~sw t d =
+let get_manifest ?(show = false) ~sw t d =
   let digest = Descriptor.digest d in
   let image = Image.v ~digest (Image.full_name t.image) in
   let size = Descriptor.size d in
   let media_type = Descriptor.media_type d in
-  let bar =
-    let name = "manifest:" ^ Digest.encoded_hash digest in
-    let color = Display.next_color () in
-    Display.line ~color ~total:size name
+  let aux progress =
+    let str =
+      if Cache.Blob.exists ~size t.cache digest then (
+        progress size;
+        Cache.Blob.get_string t.cache digest)
+      else
+        let progress i = progress (Int63.of_int i) in
+        let _, fd =
+          API.get_manifest t.client ~progress ~sw ~token:t.token image
+        in
+        Cache.Blob.add_fd ~sw t.cache digest fd;
+        Cache.Blob.get_string t.cache digest
+    in
+    manifest_of_string ~media_type str
   in
-  Display.with_line ~display:t.display bar @@ fun r ->
-  let str =
-    if Cache.Blob.exists ~size t.cache digest then (
-      progress r size;
-      Cache.Blob.get_string t.cache digest)
-    else
-      let progress = progress_int r in
-      let _, fd =
-        API.get_manifest t.client ~progress ~sw ~token:t.token image
-      in
-      Cache.Blob.add_fd ~sw t.cache digest fd;
-      Cache.Blob.get_string t.cache digest
-  in
-  manifest_of_string ~media_type str
+  if show then
+    let bar =
+      let name = "manifest:" ^ Digest.encoded_hash digest in
+      let color = Display.next_color () in
+      Display.line ~color ~total:size name
+    in
+    Display.with_line ~display:t.display bar (fun r ->
+        aux (Progress.Reporter.report r))
+  else aux ignore
 
 let fetch ?platform ~cache ~client ~domain_mgr:_ image =
   let token = Eio.Switch.run @@ fun sw -> API.get_token client ~sw image in

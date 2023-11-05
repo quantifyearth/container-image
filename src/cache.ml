@@ -33,14 +33,16 @@ module Blob = struct
   let add_fd ~sw t digest body =
     let file = file t digest in
     mkdir_parent file;
-    let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
     try
-      Flow.copy body dst;
-      Eio.Flow.close dst
-    with e ->
-      Eio.Flow.close dst;
-      Eio.Path.unlink file;
-      raise e
+      let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
+      try
+        Flow.copy body dst;
+        Eio.Flow.close dst
+      with e ->
+        Eio.Flow.close dst;
+        Eio.Path.unlink file;
+        raise e
+    with Eio.Exn.Io (Eio.Fs.E (Already_exists _), _) -> ()
 
   let add_string ~sw t digest body =
     let file = file t digest in
