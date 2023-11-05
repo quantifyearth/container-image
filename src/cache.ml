@@ -1,9 +1,13 @@
 open Container_image_spec
 module B = Blob
 
-type t = { root : [ `Dir ] Eio.Path.t }
+type t = {
+  root : [ `Dir ] Eio.Path.t;
+  lock : Eio.Mutex.t;
+  pending : (string, Eio.Mutex.t) Hashtbl.t;
+}
 
-let v root = { root }
+let v root = { root; lock = Eio.Mutex.create (); pending = Hashtbl.create 13 }
 let ( / ) = Eio.Path.( / )
 let mkdirs dir = Eio.Path.mkdirs ~exists_ok:true ~perm:0o700 dir
 
@@ -16,33 +20,66 @@ let init t =
   mkdirs (t.root / "blobs" / "sha256");
   mkdirs (t.root / "manifests")
 
+let with_lock lock fn =
+  Eio.Mutex.lock lock;
+  let finally () = Eio.Mutex.unlock lock in
+  Fun.protect ~finally fn
+
 module Blob = struct
+  let task path = Eio.Path.native_exn path
+
+  let remove_task t path =
+    let task = task path in
+    with_lock t.lock (fun () ->
+        match Hashtbl.find_opt t.pending task with
+        | None -> ()
+        | Some l ->
+            Eio.Mutex.unlock l;
+            Hashtbl.remove t.pending task)
+
+  let find_and_add_task t ~size path =
+    let task = task path in
+    with_lock t.lock (fun () ->
+        match Hashtbl.find_opt t.pending task with
+        | Some l -> `Pending l
+        | None ->
+            let exists = Eio.Path.is_file path in
+            if exists && (Eio.Path.stat ~follow:true path).size = size then
+              `Already_exists
+            else if exists then (
+              (* broken file, delete it from the cache *)
+              Eio.Path.unlink path;
+              `Fresh)
+            else `Fresh)
+
   let file t digest =
     let algo = Digest.string_of_algorithm (Digest.algorithm digest) in
     let hash = Digest.encoded_hash digest in
     Eio.Path.(t.root / "blobs" / algo / hash)
 
-  let exists t ~size digest =
+  let if_exists t ~size ?(then_ = Fun.id) ?(else_ = Fun.id) digest =
     let file = file t digest in
-    Eio.Path.is_file file
-    &&
-    let broken = (Eio.Path.stat ~follow:true file).size <> size in
-    if broken then Eio.Path.unlink file;
-    not broken
+    match find_and_add_task t ~size file with
+    | `Already_exists -> then_ ()
+    | `Fresh ->
+        let finally () = remove_task t file in
+        Fun.protect ~finally else_
+    | `Pending l ->
+        let finally () = Eio.Mutex.unlock l in
+        Eio.Mutex.lock l;
+        Fun.protect ~finally then_
 
   let add_fd ~sw t digest body =
     let file = file t digest in
     mkdir_parent file;
+    let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
     try
-      let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
-      try
-        Flow.copy body dst;
-        Eio.Flow.close dst
-      with e ->
-        Eio.Flow.close dst;
-        Eio.Path.unlink file;
-        raise e
-    with Eio.Exn.Io (Eio.Fs.E (Already_exists _), _) -> ()
+      Flow.copy body dst;
+      Eio.Flow.close dst
+    with e ->
+      Eio.Flow.close dst;
+      Eio.Path.unlink file;
+      raise e
 
   let add_string ~sw t digest body =
     let file = file t digest in

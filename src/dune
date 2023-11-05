@@ -8,6 +8,7 @@
   tls-eio
   astring
   optint
+  kcas_data
   tar-eio.gz
   decompress.gz
   mirage-crypto-rng-eio))

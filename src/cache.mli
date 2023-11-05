@@ -7,7 +7,13 @@ val v : [ `Dir ] Eio.Path.t -> t
 val init : t -> unit
 
 module Blob : sig
-  val exists : t -> size:Int63.t -> Digest.t -> bool
+  val if_exists :
+    t ->
+    size:Int63.t ->
+    ?then_:(unit -> unit) ->
+    ?else_:(unit -> unit) ->
+    Digest.t ->
+    unit
 
   val add_fd :
     sw:Eio.Switch.t -> t -> Digest.t -> Eio.Flow.source_ty Flow.t -> unit

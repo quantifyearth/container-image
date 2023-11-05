@@ -143,18 +143,19 @@ let get_blob ~sw t d =
   let size = Descriptor.size d in
   let digest = Descriptor.digest d in
   let aux progress =
-    if Cache.Blob.exists t.cache ~size digest then progress size
-    else
-      let progress i = progress (Int63.of_int i) in
-      let fd = API.get_blob t.client ~progress ~sw ~token:t.token t.image d in
-      Cache.Blob.add_fd ~sw t.cache digest fd
+    let progress i = progress (Int63.of_int i) in
+    let fd = API.get_blob t.client ~progress ~sw ~token:t.token t.image d in
+    Cache.Blob.add_fd ~sw t.cache digest fd
   in
   let () =
-    if show_blob d then
-      let bar = Display.line_of_descriptor d in
-      Display.with_line ~display:t.display bar (fun r ->
-          aux (Progress.Reporter.report r))
-    else aux ignore
+    Cache.Blob.if_exists t.cache ~size digest
+      ~then_:(fun () -> ())
+      ~else_:(fun () ->
+        if show_blob d then
+          let bar = Display.line_of_descriptor d in
+          Display.with_line ~display:t.display bar (fun r ->
+              aux (Progress.Reporter.report r))
+        else aux ignore)
   in
   Cache.Blob.get_fd ~sw t.cache digest
 
@@ -199,18 +200,17 @@ let get_manifest ?(show = false) ~sw t d =
   let size = Descriptor.size d in
   let media_type = Descriptor.media_type d in
   let aux progress =
-    let str =
-      if Cache.Blob.exists ~size t.cache digest then (
-        progress size;
-        Cache.Blob.get_string t.cache digest)
-      else
-        let progress i = progress (Int63.of_int i) in
-        let _, fd =
-          API.get_manifest t.client ~progress ~sw ~token:t.token image
-        in
-        Cache.Blob.add_fd ~sw t.cache digest fd;
-        Cache.Blob.get_string t.cache digest
+    let () =
+      Cache.Blob.if_exists ~size t.cache digest
+        ~then_:(fun () -> progress size)
+        ~else_:(fun () ->
+          let progress i = progress (Int63.of_int i) in
+          let _, fd =
+            API.get_manifest t.client ~progress ~sw ~token:t.token image
+          in
+          Cache.Blob.add_fd ~sw t.cache digest fd)
     in
+    let str = Cache.Blob.get_string t.cache digest in
     manifest_of_string ~media_type str
   in
   if show then
