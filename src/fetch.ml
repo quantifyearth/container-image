@@ -82,6 +82,12 @@ module API = struct
     | None -> failwith "missing content-digest headers"
     | Some s -> s
 
+  let manifest_of_fd ~media_type fd =
+    let str = Flow.read_all fd in
+    match Manifest.of_string ~media_type str with
+    | Ok m -> m
+    | Error (`Msg e) -> Fmt.failwith "Fetch.manifest_of_string: %s" e
+
   let get_manifest client ~progress ~sw ~token image =
     let name = Image.full_name image in
     let reference = Image.reference image in
@@ -89,7 +95,8 @@ module API = struct
     let out { content_length; content_type; content_digest; body; _ } =
       let length = get_content_length content_length in
       let digest = get_content_digest content_digest in
-      (content_type, Flow.source ~progress ~length ~digest body)
+      let fd = Flow.source ~progress ~length ~digest body in
+      manifest_of_fd ~media_type:content_type fd
     in
     let accept =
       Media_type.
@@ -181,7 +188,10 @@ let get_blob ~sw t d =
   in
   let () =
     Cache.Blob.if_exists t.cache ~size digest
-      ~then_:(fun () -> ())
+      ~then_:(fun () ->
+        Logs.info (fun l ->
+            l "Blob %a is already in the cache" Digest.pp digest);
+        ())
       ~else_:(fun () ->
         if show_blob d then
           let bar = Display.line_of_descriptor d in
@@ -191,58 +201,48 @@ let get_blob ~sw t d =
   in
   Cache.Blob.get_fd ~sw t.cache digest
 
-let manifest_of_string ~media_type str =
-  match Manifest.of_string ~media_type str with
-  | Ok m -> m
-  | Error (`Msg e) -> Fmt.failwith "Fetch.get_root_manifest: %s" e
-
-(* NOTE: we inline the data inside that manifest descriptor in the cache *)
 let get_root_manifest ~sw t =
   let go () =
     let bar =
       let color = Display.next_color () in
       let name =
-        "manifest:"
-        ^
         match (Image.tag t.image, Image.digest t.image) with
-        | Some t, None -> t
-        | _, Some d -> Digest.encoded_hash d
-        | None, None -> "latest"
+        | Some t, None -> "index:" ^ t
+        | None, None -> "index:latest"
+        | _, Some d -> "manifest:" ^ Digest.encoded_hash d
       in
-
       Display.line ~color ~total:(Int63.of_int 100) name
     in
     Display.with_line ~display:t.display bar @@ fun r ->
     let progress i = Progress.Reporter.report r (Int63.of_int i) in
-    let media_type, fd =
-      API.get_manifest t.client ~progress ~sw ~token:t.token t.image
-    in
-    let str = Flow.read_all fd in
-    let m = manifest_of_string ~media_type str in
+    let m = API.get_manifest t.client ~progress ~sw ~token:t.token t.image in
     Cache.Manifest.add ~sw t.cache t.image m
   in
-  Cache.Manifest.if_exists t.cache t.image ~else_:go;
+  Cache.Manifest.if_exists t.cache t.image
+    ~then_:(fun () ->
+      Logs.info (fun l -> l "Index %a is already in the cache" Image.pp t.image))
+    ~else_:go;
   Cache.Manifest.get t.cache t.image
 
-(* manifest are stored in the blob store *)
 let get_manifest ?(show = false) ~sw t d =
   let digest = Descriptor.digest d in
   let image = Image.v ~digest (Image.full_name t.image) in
   let size = Descriptor.size d in
-  let media_type = Descriptor.media_type d in
   let aux progress =
     let () =
-      Cache.Blob.if_exists ~size t.cache digest
-        ~then_:(fun () -> progress size)
+      Cache.Manifest.if_exists t.cache image
+        ~then_:(fun () ->
+          Logs.info (fun l ->
+              l "Manifest %a is already in the cache" Digest.pp digest);
+          progress size)
         ~else_:(fun () ->
           let progress i = progress (Int63.of_int i) in
-          let _, fd =
+          let m =
             API.get_manifest t.client ~progress ~sw ~token:t.token image
           in
-          Cache.Blob.add_fd ~sw t.cache digest fd)
+          Cache.Manifest.add ~sw t.cache image m)
     in
-    let str = Cache.Blob.get_string t.cache digest in
-    manifest_of_string ~media_type str
+    Cache.Manifest.get t.cache image
   in
   if show then
     let bar =

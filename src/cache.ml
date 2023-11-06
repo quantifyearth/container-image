@@ -116,7 +116,11 @@ module Manifest = struct
   let file t image =
     let org = Image.org image in
     let name = Image.name image in
-    Eio.Path.(t.root / "manifests" / org / name)
+    let file str = Eio.Path.(t.root / "manifests" / org / name / str) in
+    match (Image.tag image, Image.digest image) with
+    | None, None -> file "latest"
+    | Some t, None -> file t
+    | _, Some d -> file (Digest.encoded_hash d)
 
   let if_exists t ?then_ ?else_ digest =
     if_exists t ?then_ ?else_ (file t digest)

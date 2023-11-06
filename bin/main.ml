@@ -60,7 +60,7 @@ let https ~authenticator =
 let cache env =
   let fs = Eio.Stdenv.fs env in
   let xdg = Xdg.create ~env:Sys.getenv_opt () in
-  let root = Eio.Path.(fs / Xdg.cache_dir xdg / "container-image") in
+  let root = Eio.Path.(fs / Xdg.cache_dir xdg / "image") in
   let cache = Container_image.Cache.v root in
   Container_image.Cache.init cache;
   cache
