@@ -29,6 +29,8 @@ depends: [
   "tar-eio"
   "eio_main"
   "xdg"
+  "printbox"
+  "printbox-text"
   "alcotest" {with-test}
 ]
 

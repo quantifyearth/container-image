@@ -88,11 +88,27 @@ let fetch () all_tags platform image username password no_progress =
     ?username ?password image
 
 let list () =
-  Fmt.pr "📖 images:\n";
+  Fmt.pr "📖 images:\n%!";
   Eio_main.run @@ fun env ->
   let cache = cache env in
   let images = Container_image.list ~cache in
-  List.iter (fun image -> Fmt.pr "%a\n%!" Container_image.Image.pp image) images
+  let text_bold = PrintBox.(text_with_style Style.bold) in
+  let text_color c = PrintBox.(text_with_style Style.(fg_color c)) in
+  let box =
+    [ text_bold "IMAGE"; text_bold "TAG"; text_bold "DIGEST" ]
+    :: List.map
+         (fun i ->
+           let open Container_image in
+           let name = Image.full_name i in
+           let tag = Option.value ~default:"" (Image.tag i) in
+           let digest =
+             Option.fold ~none:"" ~some:Spec.Digest.to_string (Image.digest i)
+           in
+           PrintBox.[ text_color Cyan name; text_color Yellow tag; text digest ])
+         images
+    |> PrintBox.grid_l ~bars:false ~pad:(PrintBox.hpad 1)
+  in
+  PrintBox_text.output stdout box
 (*
     (fun (r, t, i, c, s) -> Fmt.pr "%-25s %-25s %-16s %-14s %s\n" r t i c s)
     [

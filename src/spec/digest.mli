@@ -5,6 +5,7 @@ val v : algorithm -> string -> (t, [ `Msg of string ]) result
 val unsafe_v : algorithm -> string -> t
 val algorithm : t -> algorithm
 val string_of_algorithm : algorithm -> string
+val algorithm_of_string : string -> (algorithm, [ `Msg of string ]) result
 val sha256 : string -> t
 val sha512 : string -> t
 val validate : t -> string -> (unit, [ `Msg of string ]) result

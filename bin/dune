@@ -3,6 +3,8 @@
  (name main)
  (libraries
   container-image
+  printbox
+  printbox-text
   eio_main
   xdg
   cmdliner

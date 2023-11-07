@@ -127,6 +127,31 @@ module Manifest = struct
   let if_exists t ?then_ ?else_ digest =
     if_exists t ?then_ ?else_ (file t digest)
 
+  let list_tags dir full_name =
+    let tags = Eio.Path.read_dir Eio.Path.(dir / full_name / "tags") in
+    List.map
+      (fun tag ->
+        let image = Image.v ~tag full_name in
+        image)
+      tags
+
+  let list_digests dir full_name algo =
+    let digests =
+      Eio.Path.read_dir Eio.Path.(dir / full_name / "digests" / algo)
+    in
+    List.map
+      (fun digest ->
+        match Digest.algorithm_of_string algo with
+        | Error (`Msg e) -> failwith e
+        | Ok algo ->
+            let digest = Digest.unsafe_v algo digest in
+            Image.v ~digest full_name)
+      digests
+
+  let list_algos dir full_name =
+    let algos = Eio.Path.read_dir Eio.Path.(dir / full_name / "digests") in
+    List.map (list_digests dir full_name) algos |> List.flatten
+
   let list t =
     let dir = Eio.Path.(t.root / "manifests") in
     let orgs = Eio.Path.read_dir dir in
@@ -134,10 +159,16 @@ module Manifest = struct
       Eio.Fiber.List.map
         (fun org ->
           let names = Eio.Path.read_dir Eio.Path.(dir / org) in
-          List.map (fun name -> Image.v (org ^ "/" ^ name)) names)
+          List.map
+            (fun name ->
+              let full_name = Fmt.str "%s/%s" org name in
+              let tags = list_tags dir full_name in
+              let digests = list_algos dir full_name in
+              tags @ digests)
+            names)
         orgs
     in
-    List.concat orgs
+    List.concat (List.concat orgs)
 
   let json_of_string str =
     match Yojson.Safe.from_string str with
