@@ -24,6 +24,11 @@ module OCI = struct
   let layers t = t.layers
   let config t = t.config
 
+  let size t =
+    List.fold_left
+      (fun acc d -> Int63.add acc (Descriptor.size d))
+      (Descriptor.size t.config) t.layers
+
   let of_string s =
     wrap
     @@ let* json = json_of_string s in
@@ -90,6 +95,11 @@ module Docker = struct
   let to_string = Fmt.to_to_string pp
   let media_type _ = Media_type.Docker.Image_manifest
 
+  let size t =
+    List.fold_left
+      (fun acc d -> Int63.add acc (Descriptor.size d))
+      (Descriptor.size t.config) t.layers
+
   let of_string s =
     wrap
     @@ let* json = json_of_string s in
@@ -152,3 +162,9 @@ let to_descriptor = function
   | `Docker_manifest_list l -> Manifest_list.to_descriptor l
   | `OCI_index i -> Index.to_descriptor i
   | `OCI_manifest m -> OCI.to_descriptor m
+
+let size = function
+  | `Docker_manifest m -> Some (Docker.size m)
+  | `Docker_manifest_list _ -> None
+  | `OCI_index _ -> None
+  | `OCI_manifest m -> Some (OCI.size m)

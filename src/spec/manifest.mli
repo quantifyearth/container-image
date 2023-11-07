@@ -1,3 +1,5 @@
+open Optint
+
 module OCI : sig
   type t [@@deriving yojson]
 
@@ -33,3 +35,4 @@ val of_string :
   media_type:Media_type.t -> string -> (t, [ `Msg of string ]) result
 
 val to_descriptor : t -> Descriptor.t
+val size : t -> Int63.t option

@@ -1,3 +1,4 @@
+open Optint
 open Cmdliner
 
 let all_tags =
@@ -87,15 +88,25 @@ let fetch () all_tags platform image username password no_progress =
   Container_image.fetch ~show_progress ~client ~cache ~domain_mgr ?platform
     ?username ?password image
 
+let sizes = [| "B"; "KiB"; "MiB"; "GiB"; "TiB"; "PiB"; "EiB"; "ZiB"; "YiB" |]
+
+let bytes_to_size ?(decimals = 2) n =
+  if n = Int63.zero then Fmt.str "0 byte"
+  else
+    let n = Optint.Int63.to_float n in
+    let i = Float.floor (Float.log n /. Float.log 1024.) in
+    let r = n /. Float.pow 1024. i in
+    Fmt.str "%.*f %s" decimals r sizes.(int_of_float i)
+
 let list () =
-  Fmt.pr "📖 images:\n%!";
   Eio_main.run @@ fun env ->
   let cache = cache env in
   let images = Container_image.list ~cache in
+  let text = PrintBox.text in
   let text_bold = PrintBox.(text_with_style Style.bold) in
   let text_color c = PrintBox.(text_with_style Style.(fg_color c)) in
   let box =
-    [ text_bold "IMAGE"; text_bold "TAG"; text_bold "DIGEST" ]
+    [ text_bold "📖 IMAGE"; text_bold "TAG / DIGEST"; text_bold "SIZE" ]
     :: List.map
          (fun i ->
            let open Container_image in
@@ -104,22 +115,24 @@ let list () =
            let digest =
              Option.fold ~none:"" ~some:Spec.Digest.to_string (Image.digest i)
            in
-           PrintBox.[ text_color Cyan name; text_color Yellow tag; text digest ])
+           let out =
+             match (tag, digest) with
+             | "", _ -> text digest
+             | _, "" -> text_color Yellow tag
+             | _ -> failwith "TODO"
+           in
+           let size =
+             let m = Cache.Manifest.get cache i in
+             match Spec.Manifest.size m with
+             | Some s -> text (bytes_to_size s)
+             | None -> text "-"
+           in
+           [ text_color Cyan name; out; size ])
          images
     |> PrintBox.grid_l ~bars:false ~pad:(PrintBox.hpad 1)
   in
-  PrintBox_text.output stdout box
-(*
-    (fun (r, t, i, c, s) -> Fmt.pr "%-25s %-25s %-16s %-14s %s\n" r t i c s)
-    [
-      ("REPOSITORY", "TAG", "IMAGE ID", "CREATED", "SIZE");
-      ( "ocaml/opam",
-        "ubuntu-20.04-ocaml-4.14",
-        "c583c0b61ae0",
-        "6 weeks ago",
-        "1.31GB" );
-    ]
-   *)
+  PrintBox_text.output stdout box;
+  Fmt.pr "\n%!"
 
 let checkout () image =
   Eio_main.run @@ fun env ->
