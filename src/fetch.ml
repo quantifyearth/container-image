@@ -238,9 +238,11 @@ let fetch ?(show_progress = true) ?platform ~cache ~client ~domain_mgr:_
   let display = Display.init ?platform ~sw image in
   let credentials =
     match (username, password) with
-    | None, None -> None
+    | None, _ -> None
     | Some u, Some p -> Some { API.username = u; password = p }
-    | _ -> invalid_arg "invalid credentials"
+    | Some u, _ ->
+        Fmt.invalid_arg
+          "missing credentials for user %s. Use `-p' or set IMAGE_TOKEN." u
   in
   let token = API.get_token client ?credentials image in
   let t = { token; display; cache; client; image } in
