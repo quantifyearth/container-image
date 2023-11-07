@@ -14,4 +14,4 @@ val fetch :
   unit
 
 val list : cache:Cache.t -> Image.t list
-val checkout : cache:Cache.t -> Image.t -> unit
+val checkout : cache:Cache.t -> root:[ `Dir ] Eio.Path.t -> Image.t -> unit

@@ -1,7 +1,10 @@
 open Container_image_spec
 open Astring
 
+(* TODO: remove code duplication *)
+let ( let* ) x f = match x with Ok x -> f x | Error e -> Error e
 let ( let+ ) x f = match x with Ok x -> Ok (f x) | Error e -> Error e
+let error_msg fmt = Fmt.kstr (fun s -> Error (`Msg s)) fmt
 
 type t = {
   org : string option;
@@ -23,7 +26,7 @@ let reference t =
   | None, None -> "latest"
 
 let of_string str =
-  let+ str, digest =
+  let* str, digest =
     match String.cut ~sep:"@" str with
     | None -> Ok (str, None)
     | Some (path, digest) ->
@@ -40,7 +43,8 @@ let of_string str =
     | None -> (None, str)
     | Some (p, i) -> (Some p, i)
   in
-  { org; name; tag; digest }
+  if name = "sha265" then error_msg "missing image name"
+  else Ok { org; name; tag; digest }
 
 let v ?digest ?tag n =
   match of_string n with

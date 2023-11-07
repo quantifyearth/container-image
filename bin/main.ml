@@ -137,7 +137,8 @@ let list () =
 let checkout () image =
   Eio_main.run @@ fun env ->
   let cache = cache env in
-  Container_image.checkout ~cache image
+  let root = Eio.Stdenv.cwd env in
+  Container_image.checkout ~cache ~root image
 
 let version =
   match Build_info.V1.version () with
