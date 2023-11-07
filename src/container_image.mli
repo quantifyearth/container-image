@@ -3,6 +3,7 @@ module Cache = Cache
 module Image = Image
 
 val fetch :
+  ?show_progress:bool ->
   ?platform:string ->
   cache:Cache.t ->
   client:Cohttp_eio.Client.t ->

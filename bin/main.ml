@@ -30,10 +30,17 @@ let username =
     @@ info ~doc:"Username" ~docv:"STRING" [ "username"; "u" ])
 
 let password =
+  let env = Cmd.Env.info "IMAGE_TOKEN" in
   Arg.(
     value
     @@ opt (some string) None
-    @@ info ~doc:"Password" ~docv:"FILE" [ "password"; "p" ])
+    @@ info ~env ~doc:"Password" ~docv:"FILE" [ "password"; "p" ])
+
+let no_progress =
+  Arg.(
+    value
+    @@ flag
+    @@ info ~doc:"Do not display the progress bars" [ "no-progress" ])
 
 let setup =
   let style_renderer = Fmt_cli.style_renderer () in
@@ -65,7 +72,7 @@ let cache env =
   Container_image.Cache.init cache;
   cache
 
-let fetch () all_tags platform image username password =
+let fetch () all_tags platform image username password no_progress =
   ignore all_tags;
   Eio_main.run @@ fun env ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
@@ -76,8 +83,9 @@ let fetch () all_tags platform image username password =
   in
   let cache = cache env in
   let domain_mgr = Eio.Stdenv.domain_mgr env in
-  Container_image.fetch ~client ~cache ~domain_mgr ?platform ?username ?password
-    image
+  let show_progress = not no_progress in
+  Container_image.fetch ~show_progress ~client ~cache ~domain_mgr ?platform
+    ?username ?password image
 
 let list () =
   Fmt.pr "📖 images:\n";
@@ -111,7 +119,14 @@ let fetch_cmd =
   Cmd.v
     (Cmd.info "fetch" ~version)
     Term.(
-      const fetch $ setup $ all_tags $ platform $ image $ username $ password)
+      const fetch
+      $ setup
+      $ all_tags
+      $ platform
+      $ image
+      $ username
+      $ password
+      $ no_progress)
 
 let list_term = Term.(const list $ setup)
 let list_cmd = Cmd.v (Cmd.info "list" ~version) list_term

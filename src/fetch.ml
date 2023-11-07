@@ -232,7 +232,8 @@ let get_manifest ?(show = false) t d =
           Cache.Manifest.add t.cache image m));
   Cache.Manifest.get t.cache image
 
-let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
+let fetch ?(show_progress = true) ?platform ~cache ~client ~domain_mgr:_
+    ?username ?password image =
   Eio.Switch.run @@ fun sw ->
   let display = Display.init ?platform ~sw image in
   let credentials =
@@ -252,51 +253,56 @@ let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
         | Error (`Msg e) -> Fmt.failwith "Fetch.fetch: %s" e)
   in
   let my_platform = platform in
+  (* let pool =
+       Eio.Executor_pool.create ~sw ~domain_count:4 ~domain_concurrency:25
+         domain_mgr
+     in
+     let get_blob t d =
+       Eio.Executor_pool.submit_exn pool (fun () ->
+           Eio.Switch.run @@ fun sw -> get_blob ~sw t d)
+           in
+  *)
+  let get_blob t d =
+    Eio.Switch.run @@ fun sw -> get_blob ~show:show_progress t ~sw d
+  in
+  let get_manifest t d = get_manifest ~show:show_progress t d in
   let rec fetch_manifest_descriptor d =
     let platform = Descriptor.platform d in
     let manifest = get_manifest t d in
-    fetch_manifest ?platform manifest
-  and fetch_manifest ?platform = function
-    | `Docker_manifest m -> (
+    fetch_manifest ~platform manifest
+  and fetch_layers ~platform config layers =
+    match (my_platform, platform) with
+    | Some p, Some p' when p <> p' ->
+        (* Fmt.epr "XXX SKIP platform=%a\n%!" Platform.pp p'; *)
+        ()
+    | _ ->
+        let _config = get_blob t config in
+        let _layers = Eio.Fiber.List.map (get_blob t) layers in
+        (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
+        (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
+        ()
+  and fetch_descriptors ds =
+    Logs.info (fun l ->
+        let platforms = List.filter_map Descriptor.platform ds in
+        l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
+    Eio.Fiber.List.iter fetch_manifest_descriptor ds
+  and fetch_manifest ~platform = function
+    | `Docker_manifest m ->
         let config = Manifest.Docker.config m in
-        match (my_platform, platform) with
-        | Some p, Some p' when p <> p' ->
-            (* Fmt.epr "XXX SKIP platform=%a\n%!" Platform.pp p'; *)
-            ()
-        | _ ->
-            let layers = Manifest.Docker.layers m in
-            let _config = get_blob ~sw t config in
-            let _layers = Eio.Fiber.List.map (get_blob ~sw t) layers in
-            (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
-            (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
-            ())
+        let layers = Manifest.Docker.layers m in
+        fetch_layers ~platform config layers
     | `Docker_manifest_list m ->
         let ds = Manifest_list.manifests m in
-        Logs.info (fun l ->
-            let platforms = List.filter_map Descriptor.platform ds in
-            l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
-        Eio.Fiber.List.iter fetch_manifest_descriptor ds
+        fetch_descriptors ds
     | `OCI_index i ->
         let ds = Index.manifests i in
-        Logs.info (fun l ->
-            let platforms = List.filter_map Descriptor.platform ds in
-            l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
-        Eio.Fiber.List.iter fetch_manifest_descriptor ds
-    | `OCI_manifest m -> (
+        fetch_descriptors ds
+    | `OCI_manifest m ->
         let config = Manifest.OCI.config m in
-        match (my_platform, platform) with
-        | Some p, Some p' when p <> p' ->
-            (* Fmt.epr "XXX SKIP platform=%a\n%!" Platform.pp p'; *)
-            ()
-        | _ ->
-            let layers = Manifest.OCI.layers m in
-            let _config = get_blob ~sw t config in
-            let _layers = Eio.Fiber.List.map (get_blob ~sw t) layers in
-            (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
-            (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
-            ())
+        let layers = Manifest.OCI.layers m in
+        fetch_layers ~platform config layers
   in
 
-  let root = get_root_manifest t in
-  fetch_manifest ?platform root;
+  let root = get_root_manifest ~show:show_progress t in
+  fetch_manifest ~platform root;
   Display.finalise display
