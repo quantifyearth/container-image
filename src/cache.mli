@@ -15,11 +15,9 @@ module Blob : sig
     Digest.t ->
     unit
 
-  val add_fd :
-    sw:Eio.Switch.t -> t -> Digest.t -> Eio.Flow.source_ty Flow.t -> unit
-
+  val add_fd : t -> Digest.t -> Eio.Flow.source_ty Flow.t -> unit
   val get_fd : sw:Eio.Switch.t -> t -> Digest.t -> Eio.File.ro_ty Eio.Resource.t
-  val add_string : sw:Eio.Switch.t -> t -> Digest.t -> string -> unit
+  val add_string : t -> Digest.t -> string -> unit
   val get_string : t -> Digest.t -> string
 end
 
@@ -28,6 +26,6 @@ module Manifest : sig
     t -> ?then_:(unit -> unit) -> ?else_:(unit -> unit) -> Image.t -> unit
 
   val get : t -> Image.t -> Manifest.t
-  val add : sw:Eio.Switch.t -> t -> Image.t -> Manifest.t -> unit
+  val add : t -> Image.t -> Manifest.t -> unit
   val list : t -> Image.t list
 end

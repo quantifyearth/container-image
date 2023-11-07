@@ -1,6 +1,27 @@
+module Int63 = Optint.Int63
 open Container_image_spec
 
-type t = ((unit -> unit) -> unit, unit) Progress.Display.t
+(* FIXME: the None type is probably not needed with switch cancellation *)
+type t = {
+  stream : (unit -> unit) option Eio.Stream.t;
+  display : ((unit -> unit) -> unit, unit) Progress.Display.t;
+}
+
+type line = Int63.t Progress.Line.t
+
+type reporter = {
+  stream : (unit -> unit) option Eio.Stream.t;
+  reporter : Int63.t Progress.Reporter.t option;
+}
+
+let report r i =
+  match r.reporter with
+  | None -> ()
+  | Some reporter ->
+      Eio.Stream.add r.stream
+        (Some (fun () -> Progress.Reporter.report reporter i))
+
+let report_int r i = report r (Int63.of_int i)
 
 let line ~color ~total message =
   let message = String.sub message 0 (min 21 (String.length message)) in
@@ -69,7 +90,25 @@ let line_of_descriptor d =
   in
   line ~color ~total txt
 
-let init_fetch ?platform image : t =
+let line_of_image i =
+  let color = next_color () in
+  let image =
+    match (Image.tag i, Image.digest i) with
+    | None, None -> Image.with_tag "latest" i
+    | _ -> i
+  in
+  let name = Image.to_string image in
+  line ~color ~total:(Int63.of_int 100) name
+
+let rec apply_stream ~sw stream =
+  Eio.Switch.check sw;
+  match Eio.Stream.take stream with
+  | Some f ->
+      f ();
+      apply_stream ~sw stream
+  | None -> ()
+
+let init ?platform ~sw image : t =
   let image_name =
     Progress.Line.(
       spacer 4
@@ -79,12 +118,31 @@ let init_fetch ?platform image : t =
       | None -> const ""
       | Some p -> constf "%a" Fmt.(styled `Faint (brackets string)) p)
   in
-  Progress.Display.start Progress.Multi.(line image_name)
+  let stream = Eio.Stream.create max_int in
+  let display = Progress.Display.start Progress.Multi.(line image_name) in
+  Eio.Fiber.fork ~sw (fun () -> apply_stream ~sw stream);
+  { stream; display }
 
-let finalise = Progress.Display.finalise
+let rec empty_stream stream =
+  match Eio.Stream.take_nonblocking stream with
+  | None | Some None -> ()
+  | Some (Some f) ->
+      f ();
+      empty_stream stream
 
-let with_line ~display bar f =
-  let reporter = Progress.Display.add_line display bar in
-  let r = f reporter in
-  Progress.Reporter.finalise reporter;
-  r
+let finalise { stream; display } =
+  Eio.Stream.add stream None;
+  empty_stream stream;
+  Progress.Display.finalise display
+
+let with_line ~display ?(show = true) bar f =
+  let reporter =
+    if show then
+      let r = Progress.Display.add_line display.display bar in
+      Some r
+    else None
+  in
+  let finally () =
+    match reporter with None -> () | Some r -> Progress.Reporter.finalise r
+  in
+  Fun.protect ~finally (fun () -> f { reporter; stream = display.stream })

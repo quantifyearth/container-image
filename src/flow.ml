@@ -1,20 +1,14 @@
 open Optint
 open Container_image_spec
 
-let with_lock ~lock fn =
-  Mutex.lock lock;
-  let finally () = Mutex.unlock lock in
-  Fun.protect ~finally fn
-
 module Progress = struct
   type t = { flow : Eio.Flow.source_ty Eio.Resource.t; progress : int -> unit }
 
   let read_methods = []
-  let lock = Mutex.create ()
 
   let single_read (t : t) buf =
     let i = Eio.Flow.single_read t.flow buf in
-    with_lock ~lock (fun () -> t.progress i);
+    t.progress i;
     i
 end
 
@@ -34,6 +28,8 @@ module Digest = struct
     let hex = Digestif.SHA256.(to_hex hash) in
     Digest.sha256 hex
 
+  (* FIXME: catch End_of_file and verify finalise here
+     to make it full transparent *)
   let single_read (t : t) buf =
     let i = Eio.Flow.single_read t.flow buf in
     t.read := Int63.add !(t.read) (Int63.of_int i);

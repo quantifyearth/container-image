@@ -78,19 +78,15 @@ module Blob = struct
   let if_exists t ~size ?then_ ?else_ digest =
     if_exists t ~size ?then_ ?else_ (file t digest)
 
-  let add_fd ~sw t digest body =
+  let add_fd t digest body =
+    Eio.Switch.run @@ fun sw ->
     let file = file t digest in
     mkdir_parent file;
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
-    try
-      Flow.copy body dst;
-      Eio.Flow.close dst
-    with e ->
-      Eio.Flow.close dst;
-      Eio.Path.unlink file;
-      raise e
+    Flow.copy body dst
 
-  let add_string ~sw t digest body =
+  let add_string t digest body =
+    Eio.Switch.run @@ fun sw ->
     let file = file t digest in
     mkdir_parent file;
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
@@ -117,10 +113,17 @@ module Manifest = struct
     let org = Image.org image in
     let name = Image.name image in
     let file str = Eio.Path.(t.root / "manifests" / org / name / str) in
+    let tag t = file ("tags/" ^ t) in
+    let digest d =
+      file
+        (Fmt.str "digests/%s/%s"
+           Digest.(string_of_algorithm (algorithm d))
+           (Digest.encoded_hash d))
+    in
     match (Image.tag image, Image.digest image) with
-    | None, None -> file "latest"
-    | Some t, None -> file t
-    | _, Some d -> file (Digest.encoded_hash d)
+    | None, None -> tag "latest"
+    | Some t, None -> tag t
+    | _, Some d -> digest d
 
   let if_exists t ?then_ ?else_ digest =
     if_exists t ?then_ ?else_ (file t digest)
@@ -148,7 +151,8 @@ module Manifest = struct
   exception Invalid_descriptor of Image.t * string * string
   exception Invalid_media_type of Image.t * Media_type.t
 
-  let add ~sw t image m =
+  let add t image m =
+    Eio.Switch.run @@ fun sw ->
     let file = file t image in
     mkdir_parent file;
     let d = Manifest.to_descriptor m in

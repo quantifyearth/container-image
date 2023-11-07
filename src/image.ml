@@ -58,3 +58,6 @@ let pp ppf t =
     | Some s -> Fmt.pf ppf "@%a" Digest.pp s
   in
   Fmt.pf ppf "%a/%s%a%a" pp_org t.org t.name pp_tag t.tag pp_digest t.digest
+
+let to_string = Fmt.to_to_string pp
+let with_tag tag t = { t with tag = Some tag }

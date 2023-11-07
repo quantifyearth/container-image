@@ -88,7 +88,8 @@ module API = struct
     | Ok m -> m
     | Error (`Msg e) -> Fmt.failwith "Fetch.manifest_of_string: %s" e
 
-  let get_manifest client ~progress ~sw ~token image =
+  let get_manifest client ~progress ~token image =
+    Eio.Switch.run @@ fun sw ->
     let name = Image.full_name image in
     let reference = Image.reference image in
     let uri = uri "%s/v2/%s/manifests/%s" registry_base name reference in
@@ -109,7 +110,7 @@ module API = struct
     in
     get client ~accept ~token ~sw uri out
 
-  let get_blob client ~progress ~sw ~token image d =
+  let get_blob client ~sw ~progress ~token image d =
     let size = Descriptor.size d in
     let digest = Descriptor.digest d in
     let name = Image.full_name image in
@@ -128,7 +129,8 @@ module API = struct
 
   type credential = { username : string; password : string }
 
-  let get_token client ~sw ?credentials image =
+  let get_token client ?credentials image =
+    Eio.Switch.run @@ fun sw ->
     let name = Image.full_name image in
     let queries =
       [
@@ -178,14 +180,10 @@ let show_blob d =
       true
   | _ -> false
 
-let get_blob ~sw t d =
+let get_blob ?(show = true) ~sw t d =
   let size = Descriptor.size d in
   let digest = Descriptor.digest d in
-  let aux progress =
-    let progress i = progress (Int63.of_int i) in
-    let fd = API.get_blob t.client ~progress ~sw ~token:t.token t.image d in
-    Cache.Blob.add_fd ~sw t.cache digest fd
-  in
+  let show = show && show_blob d in
   let () =
     Cache.Blob.if_exists t.cache ~size digest
       ~then_:(fun () ->
@@ -193,78 +191,57 @@ let get_blob ~sw t d =
             l "Blob %a is already in the cache" Digest.pp digest);
         ())
       ~else_:(fun () ->
-        if show_blob d then
-          let bar = Display.line_of_descriptor d in
-          Display.with_line ~display:t.display bar (fun r ->
-              aux (Progress.Reporter.report r))
-        else aux ignore)
+        let bar = Display.line_of_descriptor d in
+        Display.with_line ~show ~display:t.display bar (fun r ->
+            let progress = Display.report_int r in
+            Eio.Switch.run @@ fun sw ->
+            let fd =
+              API.get_blob ~sw t.client ~progress ~token:t.token t.image d
+            in
+            Cache.Blob.add_fd t.cache digest fd))
   in
   Cache.Blob.get_fd ~sw t.cache digest
 
-let get_root_manifest ~sw t =
-  let go () =
-    let bar =
-      let color = Display.next_color () in
-      let name =
-        match (Image.tag t.image, Image.digest t.image) with
-        | Some t, None -> "index:" ^ t
-        | None, None -> "index:latest"
-        | _, Some d -> "manifest:" ^ Digest.encoded_hash d
-      in
-      Display.line ~color ~total:(Int63.of_int 100) name
-    in
-    Display.with_line ~display:t.display bar @@ fun r ->
-    let progress i = Progress.Reporter.report r (Int63.of_int i) in
-    let m = API.get_manifest t.client ~progress ~sw ~token:t.token t.image in
-    Cache.Manifest.add ~sw t.cache t.image m
-  in
+let get_root_manifest ?(show = true) t =
   Cache.Manifest.if_exists t.cache t.image
     ~then_:(fun () ->
-      Logs.info (fun l -> l "Index %a is already in the cache" Image.pp t.image))
-    ~else_:go;
+      Logs.info (fun l ->
+          l "Manifest %a is already in the cache" Image.pp t.image))
+    ~else_:(fun () ->
+      let line = Display.line_of_image t.image in
+      Display.with_line ~show ~display:t.display line @@ fun r ->
+      let progress = Display.report_int r in
+      let m = API.get_manifest t.client ~progress ~token:t.token t.image in
+      Cache.Manifest.add t.cache t.image m);
   Cache.Manifest.get t.cache t.image
 
-let get_manifest ?(show = false) ~sw t d =
+let get_manifest ?(show = false) t d =
   let digest = Descriptor.digest d in
   let image = Image.v ~digest (Image.full_name t.image) in
   let size = Descriptor.size d in
-  let aux progress =
-    let () =
+  let line = Display.line_of_descriptor d in
+  Display.with_line ~show ~display:t.display line (fun r ->
       Cache.Manifest.if_exists t.cache image
         ~then_:(fun () ->
           Logs.info (fun l ->
               l "Manifest %a is already in the cache" Digest.pp digest);
-          progress size)
+          Display.report r size)
         ~else_:(fun () ->
-          let progress i = progress (Int63.of_int i) in
-          let m =
-            API.get_manifest t.client ~progress ~sw ~token:t.token image
-          in
-          Cache.Manifest.add ~sw t.cache image m)
-    in
-    Cache.Manifest.get t.cache image
-  in
-  if show then
-    let bar =
-      let name = "manifest:" ^ Digest.encoded_hash digest in
-      let color = Display.next_color () in
-      Display.line ~color ~total:size name
-    in
-    Display.with_line ~display:t.display bar (fun r ->
-        aux (Progress.Reporter.report r))
-  else aux ignore
+          let progress = Display.report_int r in
+          let m = API.get_manifest t.client ~progress ~token:t.token image in
+          Cache.Manifest.add t.cache image m));
+  Cache.Manifest.get t.cache image
 
 let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
-  let display = Display.init_fetch ?platform image in
+  Eio.Switch.run @@ fun sw ->
+  let display = Display.init ?platform ~sw image in
   let credentials =
     match (username, password) with
     | None, None -> None
     | Some u, Some p -> Some { API.username = u; password = p }
     | _ -> invalid_arg "invalid credentials"
   in
-  let token =
-    Eio.Switch.run @@ fun sw -> API.get_token client ~sw ?credentials image
-  in
+  let token = API.get_token client ?credentials image in
   let t = { token; display; cache; client; image } in
   let platform =
     match platform with
@@ -275,11 +252,11 @@ let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
         | Error (`Msg e) -> Fmt.failwith "Fetch.fetch: %s" e)
   in
   let my_platform = platform in
-  let rec fetch_manifest_descriptor ~sw d =
+  let rec fetch_manifest_descriptor d =
     let platform = Descriptor.platform d in
-    let manifest = get_manifest ~sw t d in
-    fetch_manifest ~sw ?platform manifest
-  and fetch_manifest ~sw ?platform = function
+    let manifest = get_manifest t d in
+    fetch_manifest ?platform manifest
+  and fetch_manifest ?platform = function
     | `Docker_manifest m -> (
         let config = Manifest.Docker.config m in
         match (my_platform, platform) with
@@ -289,13 +266,7 @@ let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
         | _ ->
             let layers = Manifest.Docker.layers m in
             let _config = get_blob ~sw t config in
-            let _layers =
-              Eio.Fiber.List.map
-                (fun d ->
-                  (*Eio.Domain_manager.run domain_mgr @@ fun () -> *)
-                  Eio.Switch.run @@ fun sw -> get_blob ~sw t d)
-                layers
-            in
+            let _layers = Eio.Fiber.List.map (get_blob ~sw t) layers in
             (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
             (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
             ())
@@ -304,13 +275,13 @@ let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
         Logs.info (fun l ->
             let platforms = List.filter_map Descriptor.platform ds in
             l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
-        Eio.Fiber.List.iter (fetch_manifest_descriptor ~sw) ds
+        Eio.Fiber.List.iter fetch_manifest_descriptor ds
     | `OCI_index i ->
         let ds = Index.manifests i in
         Logs.info (fun l ->
             let platforms = List.filter_map Descriptor.platform ds in
             l "supported platforms: %a" Fmt.Dump.(list Platform.pp) platforms);
-        Eio.Fiber.List.iter (fetch_manifest_descriptor ~sw) ds
+        Eio.Fiber.List.iter fetch_manifest_descriptor ds
     | `OCI_manifest m -> (
         let config = Manifest.OCI.config m in
         match (my_platform, platform) with
@@ -320,19 +291,12 @@ let fetch ?platform ~cache ~client ~domain_mgr:_ ?username ?password image =
         | _ ->
             let layers = Manifest.OCI.layers m in
             let _config = get_blob ~sw t config in
-            let _layers =
-              Eio.Fiber.List.map
-                (fun d ->
-                  (*                  Eio.Domain_manager.run domain_mgr @@ fun () -> *)
-                  Eio.Switch.run @@ fun sw -> get_blob ~sw t d)
-                layers
-            in
+            let _layers = Eio.Fiber.List.map (get_blob ~sw t) layers in
             (* Fmt.epr "XXX CONFIG=%a\n%!" pp config; *)
             (* List.iter (fun l -> Fmt.epr "XXX LAYER=%a\n" pp l) layers) *)
             ())
   in
 
-  Eio.Switch.run (fun sw ->
-      let root = get_root_manifest t ~sw in
-      fetch_manifest ~sw ?platform root);
+  let root = get_root_manifest t in
+  fetch_manifest ?platform root;
   Display.finalise display
