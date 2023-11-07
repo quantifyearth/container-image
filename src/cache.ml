@@ -1,10 +1,12 @@
 open Container_image_spec
 module B = Blob
 
+type task = { promise : unit Eio.Promise.t; resolver : unit Eio.Promise.u }
+
 type t = {
   root : [ `Dir ] Eio.Path.t;
   lock : Eio.Mutex.t;
-  pending : (string, Eio.Mutex.t) Hashtbl.t;
+  pending : (string, task) Hashtbl.t;
 }
 
 let v root = { root; lock = Eio.Mutex.create (); pending = Hashtbl.create 13 }
@@ -32,15 +34,15 @@ let remove_task t path =
   with_lock t.lock (fun () ->
       match Hashtbl.find_opt t.pending task with
       | None -> ()
-      | Some l ->
-          Eio.Mutex.unlock l;
+      | Some { resolver; _ } ->
+          Eio.Promise.resolve resolver ();
           Hashtbl.remove t.pending task)
 
 let find_and_add_task t ?size path =
   let task = task path in
   with_lock t.lock (fun () ->
       match Hashtbl.find_opt t.pending task with
-      | Some l -> `Pending l
+      | Some t -> `Pending t
       | None ->
           let exists = Eio.Path.is_file path in
           let correct_size =
@@ -51,23 +53,20 @@ let find_and_add_task t ?size path =
           in
           if exists && correct_size then `Already_exists
           else
-            let l = Eio.Mutex.create () in
-            Eio.Mutex.lock l;
-            Hashtbl.add t.pending task l;
+            let p, u = Eio.Promise.create ~label:task () in
+            Hashtbl.add t.pending task { promise = p; resolver = u };
             (* if broken file, delete it from the cache *)
             if exists then Eio.Path.unlink path;
-            `Fresh)
+            let finally () = remove_task t path in
+            `Fresh finally)
 
 let if_exists t ?size ?(then_ = Fun.id) ?(else_ = Fun.id) file =
   match find_and_add_task t ?size file with
   | `Already_exists -> then_ ()
-  | `Fresh ->
-      let finally () = remove_task t file in
-      Fun.protect ~finally else_
+  | `Fresh finally -> Fun.protect ~finally else_
   | `Pending l ->
-      let finally () = Eio.Mutex.unlock l in
-      Eio.Mutex.lock l;
-      Fun.protect ~finally then_
+      Eio.Promise.await l.promise;
+      then_ ()
 
 module Blob = struct
   let file t digest =

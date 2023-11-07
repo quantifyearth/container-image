@@ -60,15 +60,11 @@ let colors =
   in
   Array.map Progress.Color.hex (Array.of_list (a @ List.rev a))
 
-let next_color =
-  let count = ref (-1) in
-  fun () ->
-    count := succ !count mod Array.length colors;
-    colors.(!count)
+let next_color i = colors.(i mod Array.length colors)
 
-let line_of_descriptor d =
+let line_of_descriptor d i =
   let total = Descriptor.size d in
-  let color = next_color () in
+  let color = next_color i in
   let txt =
     let digest = Digest.encoded_hash (Descriptor.digest d) in
     let ty =
@@ -90,8 +86,8 @@ let line_of_descriptor d =
   in
   line ~color ~total txt
 
-let line_of_image i =
-  let color = next_color () in
+let line_of_image i n =
+  let color = next_color n in
   let image =
     match (Image.tag i, Image.digest i) with
     | None, None -> Image.with_tag "latest" i
@@ -135,11 +131,14 @@ let finalise { stream; display } =
   empty_stream stream;
   Progress.Display.finalise display
 
+let lines = ref 0
+
 let with_line ~display ?(show = true) bar f =
   let reporter =
-    if show then
-      let r = Progress.Display.add_line display.display bar in
-      Some r
+    if show then (
+      let r = Progress.Display.add_line display.display (bar !lines) in
+      incr lines;
+      Some r)
     else None
   in
   let finally () =
