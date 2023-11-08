@@ -142,6 +142,10 @@ let with_line ~display ?(show = true) bar f =
     else None
   in
   let finally () =
-    match reporter with None -> () | Some r -> Progress.Reporter.finalise r
+    match reporter with
+    | None -> ()
+    | Some r ->
+        Eio.Stream.add display.stream
+          (Some (fun () -> Progress.Reporter.finalise r))
   in
   Fun.protect ~finally (fun () -> f { reporter; stream = display.stream })
