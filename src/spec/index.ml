@@ -13,10 +13,11 @@ type t = {
   manifests : Descriptor.t list;
   platform : Platform.t option; [@default None]
   subject : Descriptor.t option; [@default None]
-  annotations : Annotation.t map; [@key "annotations"] [@default []]
+  annotations : (Annotation.t, string) map; [@key "annotations"] [@default []]
 }
 [@@deriving yojson]
 
 let pp ppf t = pp_json ppf (to_yojson t)
 let to_string = Fmt.to_to_string pp
 let manifests t = t.manifests
+let platform t = t.platform

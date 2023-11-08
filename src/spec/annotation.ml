@@ -13,6 +13,8 @@ type t =
   | Description
   | Base_image_digest
   | Base_image_name
+  | Reference_digest
+  | Reference_type
   | Other of string
 
 let to_string = function
@@ -30,6 +32,8 @@ let to_string = function
   | Description -> "org.opencontainers.image.description"
   | Base_image_digest -> "org.opencontainers.image.base.digest"
   | Base_image_name -> "org.opencontainers.image.base.name"
+  | Reference_digest -> "vnd.docker.reference.digest"
+  | Reference_type -> "vnd.docker.reference.type"
   | Other s -> s
 
 let of_string = function
@@ -47,6 +51,8 @@ let of_string = function
   | "org.opencontainers.image.description" -> Description
   | "org.opencontainers.image.base.digest" -> Base_image_digest
   | "org.opencontainers.image.base.name" -> Base_image_name
+  | "vnd.docker.reference.digest" -> Reference_digest
+  | "vnd.docker.reference.type" -> Reference_type
   | s -> Other s
 
 let to_yojson t = `String (to_string t)

@@ -34,3 +34,5 @@ val to_string : t -> string
 val of_string : string -> (t, [ `Msg of string ]) result
 val size : t -> Int63.t option
 val media_type : t -> Media_type.t
+val platform : (Descriptor.t -> Config.t) -> t -> Platform.t option
+val manifests : t -> Descriptor.t list

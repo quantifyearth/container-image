@@ -28,4 +28,6 @@ module Manifest : sig
   val get : t -> Image.t -> Manifest.t
   val add : t -> Image.t -> Manifest.t -> unit
   val list : t -> Image.t list
+  val list_tags : t -> Image.t list
+  val list_digests : t -> Image.t list
 end

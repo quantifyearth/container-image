@@ -333,6 +333,50 @@ let test_example () =
   in
   match of_json json with Some _ -> () | None -> Alcotest.fail "example"
 
+let config_of_json str =
+  match Yojson.Safe.from_string str with
+  | exception Yojson.Json_error _ ->
+      Fmt.epr "invalid JSON\n%!";
+      None
+  | json -> (
+      match Config.OCI.config_of_yojson json with
+      | Ok x -> Some x
+      | Error e ->
+          Fmt.epr "JSON error: %s\n%!" e;
+          None)
+
+let test_config () =
+  let json =
+    {|
+{
+  "ExposedPorts": {
+      "6379/tcp": {}
+  },
+  "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "GOSU_VERSION=1.16",
+      "REDIS_VERSION=7.2.3",
+      "REDIS_DOWNLOAD_URL=http://download.redis.io/releases/redis-7.2.3.tar.gz",
+      "REDIS_DOWNLOAD_SHA=3e2b196d6eb4ddb9e743088bfc2915ccbb42d40f5a8a3edd8cb69c716ec34be7"
+  ],
+  "Entrypoint": [
+      "docker-entrypoint.sh"
+  ],
+  "Cmd": [
+      "redis-server"
+  ],
+  "Volumes": {
+      "/data": {}
+  },
+  "WorkingDir": "/data",
+  "ArgsEscaped": true,
+  "OnBuild": null
+}|}
+  in
+  match config_of_json json with
+  | Some _ -> ()
+  | None -> Alcotest.fail "config example"
+
 let suite =
   [
     test_case "os" `Quick test_os;
@@ -348,4 +392,5 @@ let suite =
     test_case "valid_config_required_fields" `Quick
       test_valid_config_required_fields;
     test_case "example" `Quick test_example;
+    test_case "config example" `Quick test_config;
   ]

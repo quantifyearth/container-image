@@ -3,7 +3,7 @@ module Int63 = Optint.Int63
 (** Basic types *)
 
 type date_time = Ptime.t * Ptime.tz_offset_s option [@@deriving yojson]
-type 'a map = (string * 'a) list [@@deriving yojson]
+type ('a, 'b) map = ('a * 'b) list [@@deriving yojson]
 type env = string * string [@@deriving yojson]
 type set = string list [@@deriving yojson]
 type v2 [@@deriving yojson]

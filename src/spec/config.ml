@@ -9,13 +9,14 @@ module OCI = struct
     cmd : string list; [@default []] [@key "Cmd"]
     volumes : set; [@default []] [@key "Volumes"]
     working_dir : string option; [@default None] [@key "WorkingDir"]
-    labels : Annotation.t map; [@default []] [@key "Labels"]
+    labels : (Annotation.t, string) map; [@default []] [@key "Labels"]
     stop_signal : string option; [@default None] [@key "StopSignal"]
     args_escaped : bool option; [@default None] [@key "ArgsEscaped"]
     memory : int option; [@default None] [@key "Memory"]
     memory_swap : int option; [@default None] [@key "MemorySwap"]
     cpu_shares : int option; [@default None] [@key "CpuShares"]
     healthcheck : set; [@default []] [@key "HealthCheck"]
+    on_build : string option; [@default None] [@key "OnBuild"]
   }
   [@@deriving yojson]
 
@@ -39,7 +40,7 @@ module OCI = struct
   type t = {
     created : date_time option; [@default None]
     author : string option; [@default None]
-    architecture : string;
+    architecture : Arch.t;
     os : OS.t;
     os_version : string option; [@default None] [@key "os.version"]
     os_features : string list; [@default []] [@key "os.features"]
@@ -49,6 +50,15 @@ module OCI = struct
     history : history list; [@default []]
   }
   [@@deriving yojson]
+
+  let of_string str =
+    wrap
+    @@
+    let* json = json_of_string str in
+    of_yojson json
+
+  let platform { os_version; os_features; variant; architecture; os; _ } =
+    Platform.v ?os_version ~os_features ?variant architecture os
 end
 
 module Docker = struct
@@ -74,7 +84,7 @@ module Docker = struct
     network_disabled : bool; [@key "NetworkDisabled"] [@default false]
     mac_address : string option; [@key "MacAddress"] [@default None]
     on_build : string list option; [@key "OnBuild"]
-    labels : Annotation.t map option; [@default None] [@key "Labels"]
+    labels : (Annotation.t, string) map; [@default []] [@key "Labels"]
     stop_signal : string option; [@key "StopSignal"] [@default None]
     stop_timeout : int option; [@key "StopTimeout"] [@default None]
     shell : string list; [@key "Shell"] [@default []]
@@ -108,7 +118,7 @@ module Docker = struct
     docker_version : string option; [@default None]
     author : string option; [@default None]
     config : config option; [@default None]
-    architecture : string;
+    architecture : Arch.t;
     variant : Arch.variant option; [@default None]
     os : OS.t;
     os_version : string option; [@default None] [@key "os.version"]
@@ -122,6 +132,29 @@ module Docker = struct
   let pp ppf t = pp_json ppf (to_yojson t)
 
   let of_string str =
+    wrap
+    @@
     let* json = json_of_string str in
     of_yojson json
+
+  let platform { os_version; os_features; variant; architecture; os; _ } =
+    Platform.v ?os_version ~os_features ?variant architecture os
 end
+
+type t = OCI of OCI.t | Docker of Docker.t
+
+let platform = function
+  | OCI c -> OCI.platform c
+  | Docker d -> Docker.platform d
+
+let of_string ~media_type str =
+  match media_type with
+  | Media_type.OCI Image_config ->
+      let+ c = OCI.of_string str in
+      OCI c
+  | Docker Image_config ->
+      let+ c = Docker.of_string str in
+      Docker c
+  | ty ->
+      error_msg "Config.of_string: %a is not a supported media type."
+        Media_type.pp ty

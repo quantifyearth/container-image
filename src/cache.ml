@@ -127,49 +127,6 @@ module Manifest = struct
   let if_exists t ?then_ ?else_ digest =
     if_exists t ?then_ ?else_ (file t digest)
 
-  let list_tags dir full_name =
-    let tags = Eio.Path.read_dir Eio.Path.(dir / full_name / "tags") in
-    List.map
-      (fun tag ->
-        let image = Image.v ~tag full_name in
-        image)
-      tags
-
-  let list_digests dir full_name algo =
-    let digests =
-      Eio.Path.read_dir Eio.Path.(dir / full_name / "digests" / algo)
-    in
-    List.map
-      (fun digest ->
-        match Digest.algorithm_of_string algo with
-        | Error (`Msg e) -> failwith e
-        | Ok algo ->
-            let digest = Digest.unsafe_v algo digest in
-            Image.v ~digest full_name)
-      digests
-
-  let list_algos dir full_name =
-    let algos = Eio.Path.read_dir Eio.Path.(dir / full_name / "digests") in
-    List.map (list_digests dir full_name) algos |> List.flatten
-
-  let list t =
-    let dir = Eio.Path.(t.root / "manifests") in
-    let orgs = Eio.Path.read_dir dir in
-    let orgs =
-      Eio.Fiber.List.map
-        (fun org ->
-          let names = Eio.Path.read_dir Eio.Path.(dir / org) in
-          List.map
-            (fun name ->
-              let full_name = Fmt.str "%s/%s" org name in
-              let tags = list_tags dir full_name in
-              let digests = list_algos dir full_name in
-              tags @ digests)
-            names)
-        orgs
-    in
-    List.concat (List.concat orgs)
-
   exception Invalid_descriptor of Image.t * string * string
 
   let add t image m =
@@ -186,4 +143,45 @@ module Manifest = struct
     match Manifest.of_string str with
     | Ok d -> d
     | Error (`Msg e) -> raise (Invalid_descriptor (image, "get/1", e))
+
+  let tags_of_repo dir full_name =
+    let tags = Eio.Path.read_dir Eio.Path.(dir / full_name / "tags") in
+    List.map (fun tag -> Image.v ~tag full_name) tags
+
+  let digests_of_algo algo dir full_name =
+    let digests =
+      Eio.Path.read_dir Eio.Path.(dir / full_name / "digests" / algo)
+    in
+    List.map
+      (fun digest ->
+        match Digest.algorithm_of_string algo with
+        | Error (`Msg e) -> failwith e
+        | Ok algo ->
+            let digest = Digest.unsafe_v algo digest in
+            Image.v ~digest full_name)
+      digests
+
+  let digests_of_repo dir full_name =
+    let algos = Eio.Path.read_dir Eio.Path.(dir / full_name / "digests") in
+    List.map (fun a -> digests_of_algo a dir full_name) algos |> List.flatten
+
+  let map_repo f t =
+    let dir = Eio.Path.(t.root / "manifests") in
+    let orgs = Eio.Path.read_dir dir in
+    let orgs =
+      Eio.Fiber.List.map
+        (fun org ->
+          let names = Eio.Path.read_dir Eio.Path.(dir / org) in
+          List.map
+            (fun name ->
+              let full_name = Fmt.str "%s/%s" org name in
+              f dir full_name)
+            names)
+        orgs
+    in
+    List.concat (List.concat orgs)
+
+  let list_tags t = map_repo tags_of_repo t
+  let list_digests t = map_repo digests_of_repo t
+  let list t = list_tags t @ list_digests t
 end

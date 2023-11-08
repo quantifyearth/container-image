@@ -11,8 +11,12 @@ type t = {
 }
 [@@deriving yojson]
 
+let v ?os_version ?(os_features = []) ?variant architecture os =
+  { architecture; os; os_version; os_features; variant; features = [] }
+
 let arch t = t.architecture
 let os t = t.os
+let unknown = v Unknown Unknown
 
 let of_string str =
   match String.cuts ~sep:"/" str with

@@ -14,7 +14,7 @@ module OCI = struct
     config : Descriptor.t;
     layers : Descriptor.t list;
     subject : Descriptor.t option; [@default None]
-    annotations : Annotation.t map; [@default []]
+    annotations : (Annotation.t, string) map; [@default []]
   }
   [@@deriving yojson]
 
@@ -171,3 +171,21 @@ let media_type = function
   | `Docker_manifest_list _ -> Media_type.Docker Image_manifest_list
   | `OCI_index _ -> Media_type.OCI Image_index
   | `OCI_manifest _ -> Media_type.OCI Image_manifest
+
+let platform read = function
+  | `Docker_manifest m ->
+      let config = Docker.config m in
+      let c = read config in
+      Some (Config.platform c)
+  | `Docker_manifest_list _ -> None
+  | `OCI_index i -> Index.platform i
+  | `OCI_manifest m ->
+      let config = OCI.config m in
+      let c = read config in
+      Some (Config.platform c)
+
+let manifests = function
+  | `Docker_manifest _ -> []
+  | `Docker_manifest_list l -> Manifest_list.manifests l
+  | `OCI_index i -> Index.manifests i
+  | `OCI_manifest _ -> []

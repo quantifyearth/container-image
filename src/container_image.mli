@@ -1,6 +1,7 @@
 module Spec = Container_image_spec
 module Cache = Cache
 module Image = Image
+module List = Ls
 
 val fetch :
   ?show_progress:bool ->
@@ -13,5 +14,5 @@ val fetch :
   Image.t ->
   unit
 
-val list : cache:Cache.t -> Image.t list
+val list : cache:Cache.t -> List.t list
 val checkout : cache:Cache.t -> root:[ `Dir ] Eio.Path.t -> Image.t -> unit

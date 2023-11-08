@@ -20,27 +20,32 @@ let date_time_of_yojson : Yojson.Safe.t -> (date_time, string) result = function
 let date_time_to_yojson : date_time -> Yojson.Safe.t =
  fun (t, tz) -> `String (Ptime.to_rfc3339 ?tz_offset_s:tz t)
 
-type 'a map = (string * 'a) list
+type ('a, 'b) map = ('a * 'b) list
 
-let map_of_yojson f : Yojson.Safe.t -> ('a map, string) result = function
+let map_of_yojson fk fv : Yojson.Safe.t -> (('a, 'b) map, string) result =
+  function
   | `Null -> Ok []
   | `Assoc a -> (
       try
         let l =
           List.fold_left
             (fun acc (k, v) ->
-              match f v with
-              | Ok v -> (k, v) :: acc
-              | Error e -> raise (Break e))
+              match (fk (`String k), fv v) with
+              | Ok k, Ok v -> (k, v) :: acc
+              | Error e, _ | _, Error e -> raise (Break e))
             [] a
         in
         Ok (List.rev l)
       with Break e -> Error e)
   | j -> error "expecting an object, got %a" pp_json j
 
-let map_to_yojson f : 'a map -> Yojson.Safe.t =
+let get_string = function `String k -> k | _ -> failwith "TODO"
+
+let map_to_yojson fk fv : ('a, 'b) map -> Yojson.Safe.t =
  fun m ->
-  let l = List.fold_left (fun acc (k, v) -> (k, f v) :: acc) [] m in
+  let l =
+    List.fold_left (fun acc (k, v) -> (get_string (fk k), fv v) :: acc) [] m
+  in
   `Assoc l
 
 type nil = Nil
@@ -62,10 +67,13 @@ let env_to_yojson (k, v) = `String (k ^ "=" ^ v)
 type set = string list
 
 let set_to_yojson s =
-  map_to_yojson nil_to_yojson (List.rev_map (fun s -> (s, Nil)) s)
+  map_to_yojson
+    (fun s -> `String s)
+    nil_to_yojson
+    (List.rev_map (fun s -> (s, Nil)) s)
 
 let set_of_yojson s =
-  match map_of_yojson nil_of_yojson s with
+  match map_of_yojson (fun x -> Ok (get_string x)) nil_of_yojson s with
   | Ok l -> Ok (List.rev_map (fun (s, Nil) -> s) l)
   | Error e -> Error e
 

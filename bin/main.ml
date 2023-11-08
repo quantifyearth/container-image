@@ -1,4 +1,3 @@
-open Optint
 open Cmdliner
 
 let all_tags =
@@ -88,16 +87,6 @@ let fetch () all_tags platform image username password no_progress =
   Container_image.fetch ~show_progress ~client ~cache ~domain_mgr ?platform
     ?username ?password image
 
-let sizes = [| "B"; "KiB"; "MiB"; "GiB"; "TiB"; "PiB"; "EiB"; "ZiB"; "YiB" |]
-
-let bytes_to_size ?(decimals = 2) n =
-  if n = Int63.zero then Fmt.str "0 byte"
-  else
-    let n = Int63.to_float n in
-    let i = Float.floor (Float.log n /. Float.log 1024.) in
-    let r = n /. Float.pow 1024. i in
-    Fmt.str "%.*f %s" decimals r sizes.(int_of_float i)
-
 let list () =
   Eio_main.run @@ fun env ->
   let cache = cache env in
@@ -106,28 +95,35 @@ let list () =
   let text_bold = PrintBox.(text_with_style Style.bold) in
   let text_color c = PrintBox.(text_with_style Style.(fg_color c)) in
   let box =
-    [ text_bold "📖 IMAGE"; text_bold "TAG / DIGEST"; text_bold "SIZE" ]
+    [
+      text_bold "📖 REPOSITORY";
+      text_bold "ID";
+      text_bold "TAGS";
+      text_bold "PLATFORM";
+      text_bold "SIZE";
+    ]
     :: List.map
-         (fun i ->
-           let open Container_image in
-           let name = Image.repository i in
-           let tag = Option.value ~default:"" (Image.tag i) in
-           let digest =
-             Option.fold ~none:"" ~some:Spec.Digest.to_string (Image.digest i)
+         (fun t ->
+           let open Container_image.List in
+           let repo = repository t in
+           let tags = String.concat ", " (tags t) in
+           let digest = digest t in
+           let id =
+             let hash = Container_image.Spec.Digest.encoded_hash digest in
+             String.sub hash 0 12
            in
-           let out =
-             match (tag, digest) with
-             | "", _ -> text digest
-             | _, "" -> text_color Yellow tag
-             | _ -> failwith "TODO"
+           let platform =
+             let some = Container_image.Spec.Platform.to_string in
+             Option.fold ~none:"" ~some (platform t)
            in
-           let size =
-             let m = Cache.Manifest.get cache i in
-             match Spec.Manifest.size m with
-             | Some s -> text (bytes_to_size s)
-             | None -> text "-"
-           in
-           [ text_color Cyan name; out; size ])
+           let size = size t in
+           [
+             text_color Cyan repo;
+             text id;
+             text_color Yellow tags;
+             text platform;
+             text size;
+           ])
          images
     |> PrintBox.grid_l ~bars:false ~pad:(PrintBox.hpad 1)
   in

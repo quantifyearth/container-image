@@ -19,7 +19,7 @@ type t = {
   digest : Digest.t; [@key "digest"]
   size : z; [@key "size"]
   urls : Uri.t list; [@key "urls"] [@default []]
-  annotations : Annotation.t map; [@default []]
+  annotations : (Annotation.t, string) map; [@default []]
   data : Base64.t option; [@key "data"] [@default None]
   platform : Platform.t option; [@default None]
   artifact_type : Content_type.t option; [@key "artifactType"] [@default None]
@@ -84,3 +84,8 @@ let of_yojson json =
   match result with
   | Error _ -> result
   | Ok t -> ( match unwrap (check t) with Ok () -> result | Error _ as e -> e)
+
+let attestation_manifest d =
+  match List.assoc_opt Annotation.Reference_type d.annotations with
+  | Some "attestation-manifest" -> true
+  | _ -> false

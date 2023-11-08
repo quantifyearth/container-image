@@ -1,5 +1,14 @@
 type t [@@deriving yojson]
 
+val v :
+  ?os_version:string ->
+  ?os_features:string list ->
+  ?variant:Arch.variant ->
+  Arch.t ->
+  OS.t ->
+  t
+
+val unknown : t
 val pp : t Fmt.t
 val dump : t Fmt.t
 val to_string : t -> string

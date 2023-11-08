@@ -19,3 +19,4 @@ val empty : t
 val media_type : t -> Media_type.t
 val platform : t -> Platform.t option
 val decoded_data : t -> (string, [ `Msg of string ]) result
+val attestation_manifest : t -> bool
