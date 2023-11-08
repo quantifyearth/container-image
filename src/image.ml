@@ -57,15 +57,15 @@ let v ?digest ?tag n =
 
 let pp ppf t =
   let pp_org ppf = function
-    | None -> Fmt.string ppf "library"
-    | Some s -> Fmt.string ppf s
+    | None | Some "library" -> ()
+    | Some s -> Fmt.pf ppf "%s/" s
   in
   let pp_tag ppf = function None -> () | Some s -> Fmt.pf ppf ":%s" s in
   let pp_digest ppf = function
     | None -> ()
     | Some s -> Fmt.pf ppf "@%a" Digest.pp s
   in
-  Fmt.pf ppf "%a/%s%a%a" pp_org t.org t.name pp_tag t.tag pp_digest t.digest
+  Fmt.pf ppf "%a%s%a%a" pp_org t.org t.name pp_tag t.tag pp_digest t.digest
 
 let to_string = Fmt.to_to_string pp
 let with_tag tag t = { t with tag = Some tag }

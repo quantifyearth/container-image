@@ -25,7 +25,9 @@ let bytes_to_size ?(decimals = 2) n =
     Fmt.str "%.*f %s" decimals r sizes.(int_of_float i)
 
 let of_image ~tags ~cache i =
-  let repository = Image.repository i in
+  let repository =
+    match Image.org i with "library" -> Image.name i | _ -> Image.repository i
+  in
   let digest =
     match Image.digest i with Some d -> d | None -> assert false
     (* it's always a Some x because we used Cache.Manifest.list_digest

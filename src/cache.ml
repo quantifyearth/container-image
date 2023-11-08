@@ -1,6 +1,9 @@
 open Container_image_spec
 module B = Blob
 
+(* FIXME: code duplication *)
+let error_msg fmt = Fmt.kstr (fun s -> Error (`Msg s)) fmt
+
 type task = { promise : unit Eio.Promise.t; resolver : unit Eio.Promise.u }
 
 type t = {
@@ -184,4 +187,25 @@ module Manifest = struct
   let list_tags t = map_repo tags_of_repo t
   let list_digests t = map_repo digests_of_repo t
   let list t = list_tags t @ list_digests t
+
+  let guess' t name =
+    let digests = list_digests t in
+    let matches =
+      List.find_all
+        (fun i ->
+          match Image.digest i with
+          | None -> false
+          | Some d -> String.starts_with ~prefix:name (Digest.encoded_hash d))
+        digests
+    in
+    match matches with
+    | [] -> Image.of_string name
+    | [ i ] -> Ok i
+    | l ->
+        error_msg "%s: ambiguous name; this corresponds to:\n- %a\n" name
+          Fmt.(list ~sep:(any "\n- ") Image.pp)
+          l
+
+  let guess t name =
+    match guess' t name with Ok i -> i | Error (`Msg e) -> invalid_arg e
 end

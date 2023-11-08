@@ -30,4 +30,5 @@ module Manifest : sig
   val list : t -> Image.t list
   val list_tags : t -> Image.t list
   val list_digests : t -> Image.t list
+  val guess : t -> string -> Image.t
 end

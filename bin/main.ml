@@ -23,6 +23,12 @@ let image =
     @@ info ~doc:"Download an image from a registry" ~docv:"NAME[:TAG|@DIGEST]"
          [])
 
+let image_id =
+  Arg.(
+    required
+    @@ pos 0 (some string) None
+    @@ info ~doc:"Download an image from a registry" ~docv:"IMAGE" [])
+
 let username =
   Arg.(
     value
@@ -97,7 +103,7 @@ let list () =
   let box =
     [
       text_bold "📖 REPOSITORY";
-      text_bold "ID";
+      text_bold "IMAGE ID";
       text_bold "TAGS";
       text_bold "PLATFORM";
       text_bold "SIZE";
@@ -134,7 +140,14 @@ let checkout () image =
   Eio_main.run @@ fun env ->
   let cache = cache env in
   let root = Eio.Stdenv.cwd env in
+  let image = Container_image.Cache.Manifest.guess cache image in
   Container_image.checkout ~cache ~root image
+
+let show () image =
+  Eio_main.run @@ fun env ->
+  let cache = cache env in
+  let image = Container_image.Cache.Manifest.guess cache image in
+  Container_image.show ~cache image
 
 let version =
   match Build_info.V1.version () with
@@ -158,11 +171,14 @@ let list_term = Term.(const list $ setup)
 let list_cmd = Cmd.v (Cmd.info "list" ~version) list_term
 
 let checkout_cmd =
-  Cmd.v (Cmd.info "checkout" ~version) Term.(const checkout $ setup $ image)
+  Cmd.v (Cmd.info "checkout" ~version) Term.(const checkout $ setup $ image_id)
+
+let show_cmd =
+  Cmd.v (Cmd.info "show" ~version) Term.(const show $ setup $ image_id)
 
 let cmd =
   Cmd.group ~default:list_term (Cmd.info "image")
-    [ fetch_cmd; list_cmd; checkout_cmd ]
+    [ fetch_cmd; list_cmd; checkout_cmd; show_cmd ]
 
 let () =
   let () = Printexc.record_backtrace true in
