@@ -82,23 +82,25 @@ module API = struct
     | None -> failwith "missing content-digest headers"
     | Some s -> s
 
-  let manifest_of_fd ~media_type fd =
-    let str = Flow.read_all fd in
-    match Manifest.of_string ~media_type str with
+  let manifest_of_fd src =
+    match Manifest.of_string (Flow.read_all src) with
     | Ok m -> m
     | Error (`Msg e) -> Fmt.failwith "Fetch.manifest_of_string: %s" e
 
   let get_manifest client ~progress ~token image =
     Eio.Switch.run @@ fun sw ->
-    let name = Image.full_name image in
+    let name = Image.repository image in
     let reference = Image.reference image in
     let uri = uri "%s/v2/%s/manifests/%s" registry_base name reference in
     let out { content_length; content_type; content_digest; body; _ } =
       let length = get_content_length content_length in
       let digest = get_content_digest content_digest in
       let fd = Flow.source ~progress ~length ~digest body in
-      manifest_of_fd ~media_type:content_type fd
+      let m = manifest_of_fd fd in
+      assert (content_type = Manifest.media_type m);
+      m
     in
+
     let accept =
       Media_type.
         [
@@ -113,7 +115,7 @@ module API = struct
   let get_blob client ~sw ~progress ~token image d =
     let size = Descriptor.size d in
     let digest = Descriptor.digest d in
-    let name = Image.full_name image in
+    let name = Image.repository image in
     let uri = uri "%s/v2/%s/blobs/%a" registry_base name Digest.pp digest in
     let out { content_length; content_digest; body; _ } =
       let content_length = get_content_length content_length in
@@ -131,7 +133,7 @@ module API = struct
 
   let get_token client ?credentials image =
     Eio.Switch.run @@ fun sw ->
-    let name = Image.full_name image in
+    let name = Image.repository image in
     let queries =
       [
         ("service", [ "registry.docker.io" ]);
@@ -217,7 +219,7 @@ let get_root_manifest ?(show = true) t =
 
 let get_manifest ?(show = false) t d =
   let digest = Descriptor.digest d in
-  let image = Image.v ~digest (Image.full_name t.image) in
+  let image = Image.with_digest digest t.image in
   let size = Descriptor.size d in
   let line = Display.line_of_descriptor d in
   Display.with_line ~show ~display:t.display line (fun r ->

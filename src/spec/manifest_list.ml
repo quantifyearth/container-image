@@ -16,10 +16,3 @@ type t = {
 let pp ppf t = pp_json ppf (to_yojson t)
 let to_string = Fmt.to_to_string pp
 let manifests t = t.manifests
-
-let to_descriptor t =
-  let str = to_string t in
-  let digest = Digest.digest_string SHA256 str in
-  let size = Int63.of_int (String.length str) in
-  let media_type = Media_type.Docker Image_manifest_list in
-  Descriptor.v ~media_type ~data:str ~size digest

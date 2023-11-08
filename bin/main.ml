@@ -93,7 +93,7 @@ let sizes = [| "B"; "KiB"; "MiB"; "GiB"; "TiB"; "PiB"; "EiB"; "ZiB"; "YiB" |]
 let bytes_to_size ?(decimals = 2) n =
   if n = Int63.zero then Fmt.str "0 byte"
   else
-    let n = Optint.Int63.to_float n in
+    let n = Int63.to_float n in
     let i = Float.floor (Float.log n /. Float.log 1024.) in
     let r = n /. Float.pow 1024. i in
     Fmt.str "%.*f %s" decimals r sizes.(int_of_float i)
@@ -110,7 +110,7 @@ let list () =
     :: List.map
          (fun i ->
            let open Container_image in
-           let name = Image.full_name i in
+           let name = Image.repository i in
            let tag = Option.value ~default:"" (Image.tag i) in
            let digest =
              Option.fold ~none:"" ~some:Spec.Digest.to_string (Image.digest i)

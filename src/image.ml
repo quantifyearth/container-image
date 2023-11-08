@@ -17,13 +17,13 @@ let digest t = t.digest
 let tag t = t.tag
 let org t = match t.org with None -> "library" | Some o -> o
 let name t = t.name
-let full_name t = org t ^ "/" ^ t.name
+let repository t = org t ^ "/" ^ t.name
 
 let reference t =
   match (t.tag, t.digest) with
   | Some t, None -> t
   | _, Some t -> Digest.to_string t
-  | None, None -> "latest"
+  | None, None -> assert false
 
 let of_string str =
   let* str, digest =
@@ -44,7 +44,11 @@ let of_string str =
     | Some (p, i) -> (Some p, i)
   in
   if name = "sha265" then error_msg "missing image name"
-  else Ok { org; name; tag; digest }
+  else
+    let tag =
+      match (tag, digest) with None, None -> Some "latest" | _ -> tag
+    in
+    Ok { org; name; tag; digest }
 
 let v ?digest ?tag n =
   match of_string n with
@@ -65,3 +69,4 @@ let pp ppf t =
 
 let to_string = Fmt.to_to_string pp
 let with_tag tag t = { t with tag = Some tag }
+let with_digest d t = { t with digest = Some d }

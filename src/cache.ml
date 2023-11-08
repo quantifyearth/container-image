@@ -170,53 +170,20 @@ module Manifest = struct
     in
     List.concat (List.concat orgs)
 
-  let json_of_string str =
-    match Yojson.Safe.from_string str with
-    | json -> Ok json
-    | exception Yojson.Json_error str -> Error str
-
-  let ( let* ) x f = match x with Ok x -> f x | Error e -> Error e
-  let ( let+ ) x f = match x with Ok x -> Ok (f x) | Error e -> Error e
-
   exception Invalid_descriptor of Image.t * string * string
-  exception Invalid_media_type of Image.t * Media_type.t
 
   let add t image m =
     Eio.Switch.run @@ fun sw ->
     let file = file t image in
     mkdir_parent file;
-    let d = Manifest.to_descriptor m in
-    assert (Descriptor.decoded_data d = Ok (Manifest.to_string m));
-    let src = Descriptor.to_string d in
+    let src = Manifest.to_string m in
     let dst = Eio.Path.open_out ~sw ~create:(`Exclusive 0o644) file in
     Eio.Flow.copy_string src dst
-
-  let resolve image d =
-    let media_type = Descriptor.media_type d in
-    match Descriptor.decoded_data d with
-    | Error (`Msg e) -> raise (Invalid_descriptor (image, "resolve/1", e))
-    | Ok str -> (
-        let r =
-          let+ blob = B.of_string ~media_type str in
-          match B.v blob with
-          | Docker (Image_manifest m) -> `Docker_manifest m
-          | Docker (Image_manifest_list l) -> `Docker_manifest_list l
-          | OCI (Image_index i) -> `OCI_index i
-          | OCI (Image_manifest m) -> `OCI_manifest m
-          | _ -> raise (Invalid_media_type (image, media_type))
-        in
-        match r with
-        | Ok r -> r
-        | Error (`Msg e) -> raise (Invalid_descriptor (image, "resolve/2", e)))
 
   let get t image =
     let file = file t image in
     let str = Eio.Path.with_open_in file Eio.Flow.read_all in
-    let r =
-      let* json = json_of_string str in
-      Descriptor.of_yojson json
-    in
-    match r with
-    | Ok d -> resolve image d
-    | Error e -> raise (Invalid_descriptor (image, "get/1", e))
+    match Manifest.of_string str with
+    | Ok d -> d
+    | Error (`Msg e) -> raise (Invalid_descriptor (image, "get/1", e))
 end

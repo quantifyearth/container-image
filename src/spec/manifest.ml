@@ -65,13 +65,6 @@ module OCI = struct
           check t;
           Ok t
         with Break e -> Error e)
-
-  let to_descriptor t =
-    let str = to_string t in
-    let digest = Digest.digest_string SHA256 str in
-    let size = Int63.of_int (String.length str) in
-    let media_type = Media_type.OCI Image_manifest in
-    Descriptor.v ~media_type ~data:str ~size digest
 end
 
 module Docker = struct
@@ -104,13 +97,6 @@ module Docker = struct
     wrap
     @@ let* json = json_of_string s in
        of_yojson json
-
-  let to_descriptor t =
-    let str = to_string t in
-    let digest = Digest.digest_string SHA256 str in
-    let size = Int63.of_int (String.length str) in
-    let media_type = Media_type.Docker Image_manifest in
-    Descriptor.v ~media_type ~data:str ~size digest
 end
 
 type t =
@@ -119,37 +105,46 @@ type t =
   | `OCI_index of Index.t
   | `OCI_manifest of OCI.t ]
 
-let docker_manifest str =
-  let* json = json_of_string str in
+let docker_manifest json =
   let+ m = Docker.of_yojson json in
   `Docker_manifest m
 
-let docker_manifest_list str =
-  let* json = json_of_string str in
+let docker_manifest_list json =
   let+ m = Manifest_list.of_yojson json in
   `Docker_manifest_list m
 
-let oci_index str =
-  let* json = json_of_string str in
+let oci_index json =
   let+ m = Index.of_yojson json in
   `OCI_index m
 
-let oci_manifest str =
-  let* json = json_of_string str in
+let oci_manifest json =
   let+ m = OCI.of_yojson json in
   `OCI_manifest m
 
-let of_string ~media_type body =
-  let err () =
-    Fmt.failwith "Manifest.of_string: invalid media-type: %s"
-      (Media_type.to_string media_type)
+let of_yojson json =
+  let module U = Yojson.Safe.Util in
+  let* media_type = json / "mediaType" in
+  let media_type =
+    match media_type with
+    | `Null ->
+        (* of course some OCI image indexes do not fill that field
+           as this is an optional field in the spec. *)
+        Ok (Media_type.OCI Image_index)
+    | s -> Media_type.of_yojson s
   in
   match media_type with
-  | Docker Image_manifest -> wrap (docker_manifest body)
-  | Docker Image_manifest_list -> wrap (docker_manifest_list body)
-  | OCI Image_index -> wrap (oci_index body)
-  | OCI Image_manifest -> wrap (oci_manifest body)
-  | _ -> err ()
+  | Ok (Docker Image_manifest) -> docker_manifest json
+  | Ok (Docker Image_manifest_list) -> docker_manifest_list json
+  | Ok (OCI Image_index) -> oci_index json
+  | Ok (OCI Image_manifest) -> oci_manifest json
+  | Ok m -> error "Manifest.of_yojson: invalid media-type: %a" Media_type.pp m
+  | Error e -> error "Manifest.of_yojson: %s" e
+
+let of_string body =
+  wrap
+  @@
+  let* json = json_of_string body in
+  of_yojson json
 
 let to_string = function
   | `Docker_manifest m -> Docker.to_string m
@@ -157,14 +152,22 @@ let to_string = function
   | `OCI_index i -> Index.to_string i
   | `OCI_manifest m -> OCI.to_string m
 
-let to_descriptor = function
-  | `Docker_manifest m -> Docker.to_descriptor m
-  | `Docker_manifest_list l -> Manifest_list.to_descriptor l
-  | `OCI_index i -> Index.to_descriptor i
-  | `OCI_manifest m -> OCI.to_descriptor m
+let to_yojson = function
+  | `Docker_manifest m -> Docker.to_yojson m
+  | `Docker_manifest_list l -> Manifest_list.to_yojson l
+  | `OCI_index i -> Index.to_yojson i
+  | `OCI_manifest m -> OCI.to_yojson m
+
+let pp = Fmt.of_to_string to_string
 
 let size = function
   | `Docker_manifest m -> Some (Docker.size m)
   | `Docker_manifest_list _ -> None
   | `OCI_index _ -> None
   | `OCI_manifest m -> Some (OCI.size m)
+
+let media_type = function
+  | `Docker_manifest _ -> Media_type.Docker Image_manifest
+  | `Docker_manifest_list _ -> Media_type.Docker Image_manifest_list
+  | `OCI_index _ -> Media_type.OCI Image_index
+  | `OCI_manifest _ -> Media_type.OCI Image_manifest
