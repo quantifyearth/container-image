@@ -19,6 +19,7 @@ depends: [
   "base64"
   "cmdliner"
   "logs"
+  "astring"
   "dune-build-info"
   "mirage-crypto-rng-eio"
   "cohttp"
