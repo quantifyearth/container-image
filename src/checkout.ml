@@ -29,16 +29,18 @@ let checkout_layer ~sw ~cache layer dir =
     (fun hdr src () ->
       let path = dir / hdr.file_name in
       mkdir_parent path;
-      Eio.Switch.run @@ fun sw ->
-      let dst =
-        Eio.Path.open_out ~sw ~append:false ~create:(`If_missing hdr.file_mode)
-          path
-      in
-      Eio.Flow.copy src dst;
-      Fmt.pr "%s (%s, %a)\n%!" hdr.file_name
-        (Tar.Header.Link.to_string hdr.link_indicator)
-        (bytes_to_size ~decimals:2)
-        hdr.file_size)
+      (* TODO(patricoferrs): Why landing? *)
+      let file_mode = 0o777 land hdr.file_mode in
+      (* TODO(patricoferris): Symlinks etc. *)
+      match hdr.link_indicator with
+      | Directory -> Eio.Path.mkdir ~perm:file_mode path
+      | _ ->
+          Eio.Switch.run @@ fun sw ->
+          let dst =
+            Eio.Path.open_out ~sw ~append:false ~create:(`If_missing file_mode)
+              path
+          in
+          Eio.Flow.copy src dst)
     fd ()
 
 let checkout_layers ~sw ~cache ~dir layers =
@@ -55,15 +57,16 @@ let checkout_docker_manifest ~sw ~cache ~dir m =
 let checkout_oci_manifest ~sw ~cache ~dir m =
   checkout_layers ~sw ~cache ~dir (Manifest.OCI.layers m)
 
-let checkout_docker_manifests ~sw ~cache ~dir ds =
+let checkout_docker_manifests ~sw ~cache ~dir img ds =
   let ms =
     List.map
       (fun d ->
         let digest = Descriptor.digest d in
-        let str = Cache.Blob.get_string cache digest in
-        match Manifest.Docker.of_string str with
-        | Ok m -> m
-        | Error (`Msg e) -> failwith e)
+        let img = Image.v ~digest img in
+        let manifest = Cache.Manifest.get cache img in
+        match manifest with
+        | `Docker_manifest mani -> mani
+        | _ -> failwith "Exptected single docker manifest")
       ds
   in
   List.iteri
@@ -89,8 +92,8 @@ let checkout_oci_manifests ~sw ~cache ~dir ds =
       checkout_oci_manifest ~sw ~cache ~dir m)
     ms
 
-let checkout_docker_manifest_list ~sw ~cache ~dir l =
-  checkout_docker_manifests ~sw ~cache ~dir (Manifest_list.manifests l)
+let checkout_docker_manifest_list ~sw ~cache ~dir img l =
+  checkout_docker_manifests ~sw ~cache ~dir img (Manifest_list.manifests l)
 
 let checkout_oci_index ~sw ~cache ~dir i =
   checkout_oci_manifests ~sw ~cache ~dir (Index.manifests i)
@@ -100,6 +103,7 @@ let checkout ~cache ~root i =
   Eio.Switch.run @@ fun sw ->
   match Cache.Manifest.get cache i with
   | `Docker_manifest m -> checkout_docker_manifest ~sw ~cache ~dir m
-  | `Docker_manifest_list m -> checkout_docker_manifest_list ~sw ~cache ~dir m
+  | `Docker_manifest_list m ->
+      checkout_docker_manifest_list ~sw ~cache ~dir (Image.repository i) m
   | `OCI_index i -> checkout_oci_index ~sw ~cache ~dir i
   | `OCI_manifest m -> checkout_oci_manifest ~sw ~cache ~dir m
