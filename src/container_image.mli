@@ -2,6 +2,7 @@ module Spec = Container_image_spec
 module Cache = Cache
 module Image = Image
 module List = Ls
+module Util = Util
 
 val fetch :
   ?show_progress:bool ->
