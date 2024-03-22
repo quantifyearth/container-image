@@ -1,6 +1,10 @@
 (library
  (public_name container-image)
  (name container_image)
+ (foreign_stubs
+  (language c)
+  (flags :standard -D_LARGEFILE64_SOURCE)
+  (names container_image_stubs))
  (libraries
   container-image.spec
   progress
@@ -10,5 +14,6 @@
   optint
   tar-eio.gz
   decompress.gz
-  mirage-crypto-rng-eio
-  osrelease))
+  eio.unix
+  osrelease
+  mirage-crypto-rng-eio))

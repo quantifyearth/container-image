@@ -16,5 +16,12 @@ val fetch :
   unit
 
 val list : cache:Cache.t -> List.t list
-val checkout : cache:Cache.t -> root:[ `Dir ] Eio.Path.t -> Image.t -> unit
+
+val checkout :
+  ?only_rootfs:bool ->
+  cache:Cache.t ->
+  root:[ `Dir ] Eio.Path.t ->
+  Image.t ->
+  unit
+
 val show : cache:Cache.t -> Image.t -> unit
