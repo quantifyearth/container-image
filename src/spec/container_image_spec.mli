@@ -22,6 +22,7 @@ module Blob = Blob
 module Auth = Auth
 module Platform = Platform
 module OS = OS
+module Arch = Arch
 
 type oci
 (** The type for OCI images as described in the

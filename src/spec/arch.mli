@@ -21,6 +21,7 @@ type t =
 
 val pp : t Fmt.t
 val of_string : string -> (t, [ `Msg of string ]) result
+val to_string : t -> string
 
 type variant = V5 | V6 | V7 | V8 [@@deriving yojson]
 

@@ -143,6 +143,22 @@ end
 
 type t = OCI of OCI.t | Docker of Docker.t
 
+let pp ppf = function
+  | OCI oci -> pp_json ppf (OCI.to_yojson oci)
+  | Docker docker -> pp_json ppf (Docker.to_yojson docker)
+
+let env = function
+  | OCI oci -> (
+      match Option.map (fun (config : OCI.config) -> config.env) oci.config with
+      | None -> []
+      | Some v -> v)
+  | Docker docker -> (
+      match
+        Option.bind docker.config (fun (config : Docker.config) -> config.env)
+      with
+      | None -> []
+      | Some v -> v)
+
 let platform = function
   | OCI c -> OCI.platform c
   | Docker d -> Docker.platform d

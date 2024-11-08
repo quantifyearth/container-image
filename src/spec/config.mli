@@ -17,6 +17,11 @@ end
 
 type t = OCI of OCI.t | Docker of Docker.t
 
+val pp : t Fmt.t
+
+val env : t -> (string * string) list
+(** Environment variables *)
+
 val platform : t -> Platform.t
 
 val of_string :

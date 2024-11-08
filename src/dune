@@ -10,4 +10,5 @@
   optint
   tar-eio.gz
   decompress.gz
-  mirage-crypto-rng-eio))
+  mirage-crypto-rng-eio
+  osrelease))

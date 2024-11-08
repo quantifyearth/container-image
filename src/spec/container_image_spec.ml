@@ -11,6 +11,7 @@ module Blob = Blob
 module Auth = Auth
 module Platform = Platform
 module OS = OS
+module Arch = Arch
 
 type oci = {
   manifest : Manifest.OCI.t;
