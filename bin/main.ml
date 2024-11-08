@@ -14,6 +14,13 @@ let platform =
     @@ info ~doc:"Set platform if server is multi-platform capable"
          [ "platform" ])
 
+let checkout_directory =
+  Arg.(
+    value
+    @@ opt (some dir) None
+    @@ info ~doc:"The directory to checkout the image to."
+         [ "checkout-directory" ])
+
 let image =
   let open Container_image in
   let image = Arg.conv (Image.of_string, Image.pp) in
@@ -136,10 +143,16 @@ let list () =
   PrintBox_text.output stdout box;
   Fmt.pr "\n%!"
 
-let checkout () image =
+let checkout () image path =
   Eio_main.run @@ fun env ->
   let cache = cache env in
-  let root = Eio.Stdenv.cwd env in
+  let root =
+    match path with
+    | None -> Eio.Stdenv.cwd env
+    | Some path ->
+        let fs = Eio.Stdenv.fs env in
+        Eio.Path.(fs / path)
+  in
   let image = Container_image.Cache.Manifest.guess cache image in
   Container_image.checkout ~cache ~root image
 
@@ -171,7 +184,9 @@ let list_term = Term.(const list $ setup)
 let list_cmd = Cmd.v (Cmd.info "list" ~version) list_term
 
 let checkout_cmd =
-  Cmd.v (Cmd.info "checkout" ~version) Term.(const checkout $ setup $ image_id)
+  Cmd.v
+    (Cmd.info "checkout" ~version)
+    Term.(const checkout $ setup $ image_id $ checkout_directory)
 
 let show_cmd =
   Cmd.v (Cmd.info "show" ~version) Term.(const show $ setup $ image_id)
