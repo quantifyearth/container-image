@@ -1,0 +1,44 @@
+name: Build & Tests
+
+on:
+  - push
+  - pull_request
+
+permissions: read-all
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout tree
+        uses: actions/checkout@v4
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.1
+          dune-cache: true
+      - run: opam list
+      - name: Restore opam cache
+        id: restore-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: _opam
+          key:  ${{ runner.os }}-opam-${{ hashFiles('container-image.opam') }}
+          restore-keys: |
+            ${{ runner.os }}-opam-
+      - run: opam list
+      - run: sudo apt-get install -qq -yy libev-dev libonig-dev
+      - name: Build dependencies
+        run: opam install . --deps-only --with-test
+      - name: Save opam cache
+        if: steps.restore-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: _opam
+          key: ${{ steps.restore-cache.outputs.cache-primary-key }}
+      - run: opam exec -- dune build
+      - run: opam exec -- dune runtest
