@@ -20,28 +20,60 @@ let bytes_to_size ?(decimals = 2) ppf = function
       let r = n /. Float.pow 1024. i in
       Format.fprintf ppf "%.*f %s" decimals r sizes.(int_of_float i)
 
+let ignore_if_already_exists f v =
+  try f v with Eio.Exn.Io (Eio.Fs.E (Already_exists _), _) -> ()
+
+(* TODO: Upstream patches to Eio for fchmodat, fchownat, utimensat *)
 let checkout_layer ~sw ~cache layer dir =
-  let fd = Cache.Blob.get_fd ~sw cache layer in
-  let fd = Tar_eio_gz.of_source fd in
-  Fmt.epr "Extracting layer %a:\n%!" Digest.pp layer;
-  Tar_eio_gz.fold
-    ~filter:(fun _ -> `Header_and_file)
-    (fun hdr src () ->
-      let path = dir / hdr.file_name in
-      mkdir_parent path;
-      (* TODO(patricoferrs): Why landing? *)
+  let ( let* ) = Tar.( let* ) in
+  let src = Cache.Blob.get_fd ~sw cache layer in
+  Eio.traceln "Extracting layer %a:\n%!" Digest.pp layer;
+  let go ?global:_ (hdr : Tar.Header.t) _ =
+    let path = dir / hdr.file_name in
+    let* () =
       let file_mode = 0o777 land hdr.file_mode in
-      (* TODO(patricoferris): Symlinks etc. *)
       match hdr.link_indicator with
-      | Directory -> Eio.Path.mkdir ~perm:file_mode path
-      | _ ->
-          Eio.Switch.run @@ fun sw ->
-          let dst =
-            Eio.Path.open_out ~sw ~append:false ~create:(`If_missing file_mode)
-              path
+      | Directory ->
+          ignore_if_already_exists (Eio.Path.mkdir ~perm:file_mode) path;
+          Tar.return (Ok ())
+      | Symbolic ->
+          ignore_if_already_exists
+            (Eio.Path.symlink ~link_to:hdr.link_name)
+            path;
+          Tar.return (Ok ())
+      | Normal ->
+          Eio.Path.with_open_out ~append:false ~create:(`If_missing file_mode)
+            path
+          @@ fun dst ->
+          Eio.Flow.copy src dst;
+          Tar.return (Ok ())
+      | _ -> Tar.return (Ok ())
+    in
+    (* Updating ownership, permission and times if root user *)
+    if Unix.getuid () = 0 then (
+      Eio.Path.chown ~follow:true ~uid:(Int64.of_int hdr.user_id)
+        ~gid:(Int64.of_int hdr.group_id)
+        path;
+      if hdr.link_indicator <> Symbolic then
+        Eio.Path.chmod path ~follow:false ~perm:hdr.file_mode;
+      Eio_unix.run_in_systhread ~label:"utimes" (fun () ->
+          let access_time =
+            Option.value ~default:0.
+            @@ Option.bind hdr.extended (fun e ->
+                   Option.map Int64.to_float e.access_time)
           in
-          Eio.Flow.copy src dst)
-    fd ()
+          let mod_time = hdr.mod_time |> Int64.to_float in
+          if hdr.link_indicator <> Symbolic then
+            Unix.utimes (Eio.Path.native_exn path) access_time mod_time));
+    Tar.return (Ok ())
+  in
+  match Tar_eio.run (Tar_gz.in_gzipped (Tar.fold go ())) (File src) with
+  | Ok () -> ()
+  | Error (`Eof | `Unexpected_end_of_file) ->
+      failwith "Unexpected end of file when untarring"
+  | Error (`Msg m) -> failwith m
+  | Error (`Fatal e) -> Fmt.failwith "%a" Tar.pp_error e
+  | Error (`Gz g) -> failwith g
 
 let checkout_layers ~sw ~cache ~dir layers =
   List.iteri

@@ -65,17 +65,22 @@ let setup =
     $ style_renderer
     $ Logs_cli.level ())
 
-let null_auth ?ip:_ ~host:_ _ =
-  Ok None (* Warning: use a real authenticator in your code! *)
+let authenticator =
+  match Ca_certs.authenticator () with
+  | Ok x -> x
+  | Error (`Msg m) ->
+      Fmt.failwith "Failed to create system store X509 authenticator: %s" m
 
 let https ~authenticator =
-  let tls_config = Tls.Config.client ~authenticator () in
-  fun uri raw ->
-    let host =
-      Uri.host uri
-      |> Option.map (fun x -> Domain_name.(host_exn (of_string_exn x)))
-    in
-    Tls_eio.client_of_flow ?host tls_config raw
+  match Tls.Config.client ~authenticator () with
+  | Error (`Msg m) -> failwith m
+  | Ok tls_config ->
+      fun uri raw ->
+        let host =
+          Uri.host uri
+          |> Option.map (fun x -> Domain_name.(host_exn (of_string_exn x)))
+        in
+        Tls_eio.client_of_flow ?host tls_config raw
 
 let cache env =
   let fs = Eio.Stdenv.fs env in
@@ -91,7 +96,7 @@ let fetch () all_tags platform image username password no_progress =
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let client =
     Cohttp_eio.Client.make
-      ~https:(Some (https ~authenticator:null_auth))
+      ~https:(Some (https ~authenticator))
       (Eio.Stdenv.net env)
   in
   let cache = cache env in
