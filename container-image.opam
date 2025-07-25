@@ -32,18 +32,7 @@ depends: [
   "xdg"
   "printbox"
   "printbox-text"
-  "osrelease"
   "alcotest" {with-test}
-]
-
-pin-depends: [
-  [ "cohttp-eio.dev" "git+https://github.com/mirage/ocaml-cohttp.git#master"]
-  [ "cohttp.dev"     "git+https://github.com/mirage/ocaml-cohttp.git#master"]
-  [ "http.dev"       "git+https://github.com/mirage/ocaml-cohttp.git#master"]
-  [ "mirage-crypto-rng.0.11.2" "git+https://github.com/dinosaure/mirage-crypto.git#parallel"]
-  [ "tar.dev"        "git+https://github.com/samoht/ocaml-tar.git#eio-0.12"]
-  [ "tar-eio.dev"    "git+https://github.com/samoht/ocaml-tar.git#eio-0.12"]
-  [ "osrelease.dev"  "git+https://github.com/avsm/osrelease#master"]
 ]
 
 synopsis: "Tools to manage OCI and Docker images"

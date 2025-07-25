@@ -69,7 +69,11 @@ let null_auth ?ip:_ ~host:_ _ =
   Ok None (* Warning: use a real authenticator in your code! *)
 
 let https ~authenticator =
-  let tls_config = Tls.Config.client ~authenticator () in
+  let tls_config =
+    Tls.Config.client ~authenticator () |> function
+    | Ok v -> v
+    | Error (`Msg m) -> Fmt.failwith "tls_config failed: %s" m
+  in
   fun uri raw ->
     let host =
       Uri.host uri
@@ -87,8 +91,8 @@ let cache env =
 
 let fetch () all_tags platform image username password no_progress =
   ignore all_tags;
+  Mirage_crypto_rng_unix.use_default ();
   Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let client =
     Cohttp_eio.Client.make
       ~https:(Some (https ~authenticator:null_auth))

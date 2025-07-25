@@ -8,7 +8,7 @@
   tls-eio
   astring
   optint
-  tar-eio.gz
+  tar.gz
+  tar-eio
   decompress.gz
-  mirage-crypto-rng-eio
-  osrelease))
+  bos))
