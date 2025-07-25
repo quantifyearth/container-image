@@ -20,28 +20,49 @@ let bytes_to_size ?(decimals = 2) ppf = function
       let r = n /. Float.pow 1024. i in
       Format.fprintf ppf "%.*f %s" decimals r sizes.(int_of_float i)
 
+let tar_fold_unzip ~init f flow =
+  let tar = Tar.fold f init in
+  let unzip = Tar_gz.in_gzipped tar in
+  Tar_eio.run unzip (Flow flow)
+
+let copy ~dst_fd len =
+  let open Tar.Syntax in
+  let blen = 65536 in
+  let rec read_write ~dst_fd len =
+    if len = 0 then Tar.return (Ok ())
+    else
+      let slen = min blen len in
+      let* str = Tar.really_read slen in
+      Eio.Flow.copy_string str dst_fd;
+      read_write ~dst_fd (len - slen)
+  in
+  read_write ~dst_fd len
+
 let checkout_layer ~sw ~cache layer dir =
   let fd = Cache.Blob.get_fd ~sw cache layer in
-  let fd = Tar_eio_gz.of_source fd in
   Fmt.epr "Extracting layer %a:\n%!" Digest.pp layer;
-  Tar_eio_gz.fold
-    ~filter:(fun _ -> `Header_and_file)
-    (fun hdr src () ->
+  tar_fold_unzip
+    (* ~filter:(fun _ -> `Header_and_file) *)
+    (fun ?global:_ hdr () ->
       let path = dir / hdr.file_name in
       mkdir_parent path;
       (* TODO(patricoferrs): Why landing? *)
       let file_mode = 0o777 land hdr.file_mode in
       (* TODO(patricoferris): Symlinks etc. *)
       match hdr.link_indicator with
-      | Directory -> Eio.Path.mkdir ~perm:file_mode path
+      | Directory ->
+          Eio.Path.mkdir ~perm:file_mode path;
+          Tar.return (Ok ())
       | _ ->
-          Eio.Switch.run @@ fun sw ->
-          let dst =
-            Eio.Path.open_out ~sw ~append:false ~create:(`If_missing file_mode)
-              path
-          in
-          Eio.Flow.copy src dst)
-    fd ()
+          Eio.Path.with_open_out ~append:false
+            ~create:(`Exclusive hdr.file_mode) (dir / hdr.file_name)
+          @@ fun dst_fd -> copy ~dst_fd (Int64.to_int hdr.file_size))
+    fd ~init:()
+  |> function
+  | Ok v -> v
+  | Error `Unexpected_end_of_file | Error `Eof -> raise End_of_file
+  | Error (`Fatal err) -> Fmt.failwith "%a" Tar.pp_error err
+  | Error (`Gz gz) -> Fmt.failwith "gzip: %s" gz
 
 let checkout_layers ~sw ~cache ~dir layers =
   List.iteri

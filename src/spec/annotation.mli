@@ -24,4 +24,5 @@ val to_string : t -> string
 
 val of_string : string -> t
 (** [of_string s] tries to convert a string [s] to its corresponding annotation
-    variant. Returns [None] if the string does not match any known annotation. *)
+    variant. Returns [None] if the string does not match any known annotation.
+*)

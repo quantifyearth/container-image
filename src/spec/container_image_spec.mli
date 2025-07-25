@@ -27,7 +27,7 @@ module Arch = Arch
 type oci
 (** The type for OCI images as described in the
     {{:https://github.com/opencontainers/image-spec/blob/main/spec.md} Image
-      Format Specification} of the
+     Format Specification} of the
     {{:https://opencontainers.org/} Open Container Initative}. *)
 
 val manifest : oci -> Manifest.OCI.t
@@ -45,7 +45,7 @@ val config : oci -> Config.OCI.t
 type docker
 (** The type for Docker images as specified by the
     {{:https://github.com/moby/moby/blob/master/image/spec/spec.md} Docker Image
-      Specification v1.3} *)
+     Specification v1.3} *)
 
 val manifest_list : docker -> Manifest_list.t
 (** [manifest_list img] is the manifest list of the Docker image [img]. *)

@@ -3,6 +3,7 @@
  (name main)
  (libraries
   container-image
+  mirage-crypto-rng.unix
   printbox
   printbox-text
   eio_main
