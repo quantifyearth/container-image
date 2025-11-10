@@ -1,0 +1,34 @@
+(version 3.3.0)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run
+      dune
+      build
+      -p
+      %{pkg-self:name}
+      -j
+      %{jobs}
+      --promote-install-files=false
+      @install)
+     (run
+      dune
+      install
+      -p
+      %{pkg-self:name}
+      --create-install-files
+      %{pkg-self:name}))))))
+
+(depends
+ (all_platforms
+  (dune ocaml eio tar)))
+
+(source
+ (fetch
+  (url
+   https://github.com/mirage/ocaml-tar/releases/download/v3.3.0/tar-3.3.0.tbz)
+  (checksum
+   sha256=f3d6b0d677fd40fd1eb80bccc60bb613220358be58f66c5fa8bf0257f3e5eb96)))

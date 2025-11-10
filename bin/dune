@@ -15,3 +15,8 @@
   fmt.cli
   logs.fmt
   fmt.tty))
+
+(env
+ (static
+  (link_flags
+   (:standard -cclib -static))))
