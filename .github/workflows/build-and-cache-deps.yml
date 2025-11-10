@@ -1,0 +1,40 @@
+# The actions/cache github action allows builds of tags to use artifacts cached
+# by builds of the default branch, but doesn't allow builds of tags to use
+# artifacts cached by other tags. Thus to make the dependencies of the project
+# available to the "release" workflow, they are built and cached by this
+# workflow.
+
+name: Build and Cache Dependencies
+
+on:
+  push:
+    branches:
+    - 'main'
+
+jobs:
+  release-unix:
+    name: Build and cache deps for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-15-intel
+          - os: macos-15
+          - os: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: ocaml-dune/setup-dune@v0
+
+      - name: Cache build artifacts
+        id: artifact-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            _build
+            ~/.cache/dune
+          key: ${{ matrix.os }}-artifacts-${{ hashFiles('dune.lock') }}
+
+      - name: Build the project
+        run: dune build @install --release --only-packages container-image

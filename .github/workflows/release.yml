@@ -1,0 +1,79 @@
+name: release
+
+on:
+  push:
+    tags:
+    - '*'
+
+jobs:
+  release-unix:
+    name: Release for ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-15-intel
+            name: x86_64-macos
+          - os: macos-15
+            name: aarch64-macos
+          - os: ubuntu-latest
+            name: x86_64-linux
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - uses: ocaml-dune/setup-dune@v0
+
+      - name: Load dependencies from the cache
+        id: artifact-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            _build
+            ~/.cache/dune
+          key: ${{ matrix.os }}-artifacts-${{ hashFiles('dune.lock') }}
+
+      - name: Build the project
+        run: dune build @install --only-packages container-image
+
+      - run: echo OUT_NAME=container-image-${{ github.ref_name }}-${{ matrix.name }} >> $GITHUB_ENV
+
+      - name: Release a tarball of build outputs
+        run: |
+          mkdir -p "$OUT_NAME"
+          cp -rlf _build/install/default/* "$OUT_NAME"
+          tar czf "$OUT_NAME.tar.gz" "$OUT_NAME"
+
+      - name: Upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "*.tar.gz"
+
+
+  release-x86_64-linux-musl-static:
+    name: Build for x86_64-linux-musl-static
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - run: echo OUT_NAME=container-image-${{ github.ref_name }}-x86_64-linux-statically-linked >> $GITHUB_ENV
+
+      - run: mkdir -p $OUT_NAME
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - run: docker buildx build --output type=local,dest=$OUT_NAME -f scripts/build-static.dockerfile .
+
+      - name: Test we can execute the exe on the host as a basic sanity check
+        run: $OUT_NAME/bin/image --help
+
+      - name: Make a tarball of build outputs
+        run: tar czf "$OUT_NAME.tar.gz" "$OUT_NAME"
+
+      - name: Upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "*.tar.gz"
