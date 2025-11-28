@@ -1,0 +1,57 @@
+name: release
+
+on:
+  push:
+    tags:
+    - '*'
+
+jobs:
+  release-unix:
+    name: Release for ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-15-intel
+            name: x86_64-macos
+          - os: macos-15
+            name: aarch64-macos
+          - os: ubuntu-latest
+            name: x86_64-linux
+          - os: ubuntu-latest
+            name: x86_64-linux-statically-linked
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: ocaml-dune/setup-dune@v0
+
+      - name: Load dependencies from the cache
+        id: artifact-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            _build
+            ~/.cache/dune
+          key: ${{ matrix.os }}-artifacts-${{ hashFiles('dune.lock') }}
+
+      - name: Configure Dune to use the "static" profile
+        if: matrix.name == 'x86_64-linux-statically-linked'
+        run: echo DUNE_PROFILE=static >> $GITHUB_ENV
+
+      - name: Build the project
+        run: dune build @install --only-packages container-image
+
+      - run: echo OUT_NAME=container-image-${{ github.ref_name }}-${{ matrix.name }} >> $GITHUB_ENV
+
+      - name: Release a tarball of build outputs
+        run: |
+          mkdir -p "$OUT_NAME"
+          cp -rlf _build/install/default/* "$OUT_NAME"
+          tar czf "$OUT_NAME.tar.gz" "$OUT_NAME"
+
+      - name: Upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "*.tar.gz"
