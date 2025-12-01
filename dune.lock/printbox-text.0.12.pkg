@@ -1,0 +1,19 @@
+(version 0.12)
+
+(build
+ (all_platforms
+  ((action
+    (progn
+     (when %{pkg-self:dev} (run dune subst))
+     (run dune build -p %{pkg-self:name} -j %{jobs} @install))))))
+
+(depends
+ (all_platforms
+  (dune printbox uutf uucp)))
+
+(source
+ (fetch
+  (url
+   https://github.com/c-cube/printbox/releases/download/v0.12/printbox-0.12.tbz)
+  (checksum
+   sha256=c783dfbbc21ed9bdab04980b58efa901b149f38f9992f2cdc624abd681d8dedb)))
