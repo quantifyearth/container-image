@@ -24,7 +24,7 @@ jobs:
       - run: opam list
       - name: Restore opam cache
         id: restore-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: _opam
           key:  ${{ runner.os }}-opam-${{ hashFiles('container-image.opam') }}
@@ -36,7 +36,7 @@ jobs:
         run: opam install . --deps-only --with-test
       - name: Save opam cache
         if: steps.restore-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: _opam
           key: ${{ steps.restore-cache.outputs.cache-primary-key }}
