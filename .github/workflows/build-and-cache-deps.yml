@@ -23,13 +23,13 @@ jobs:
           - os: ubuntu-latest
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: ocaml-dune/setup-dune@v0
+      - uses: ocaml-dune/setup-dune@v2
 
       - name: Cache build artifacts
         id: artifact-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             _build

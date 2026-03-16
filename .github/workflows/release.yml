@@ -1,9 +1,8 @@
-name: release
+name: Build and upload binary releases
 
 on:
-  push:
-    tags:
-    - '*'
+  release:
+    types: [released]
 
 jobs:
   release-unix:
@@ -22,11 +21,11 @@ jobs:
 
       - uses: actions/checkout@v6
 
-      - uses: ocaml-dune/setup-dune@v0
+      - uses: ocaml-dune/setup-dune@v2
 
       - name: Load dependencies from the cache
         id: artifact-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             _build
@@ -34,15 +33,15 @@ jobs:
           key: ${{ matrix.os }}-artifacts-${{ hashFiles('dune.lock') }}
 
       - name: Build the project
-        run: dune build @install --only-packages container-image
-
-      - run: echo OUT_NAME=container-image-${{ github.ref_name }}-${{ matrix.name }} >> $GITHUB_ENV
+        run: dune build @install --only-packages container-image --release
 
       - name: Release a tarball of build outputs
         run: |
-          mkdir -p "$OUT_NAME"
-          cp -rlf _build/install/default/* "$OUT_NAME"
-          tar czf "$OUT_NAME.tar.gz" "$OUT_NAME"
+          OUT_NAME="container-image-${{ github.ref_name }}-${{ matrix.name }}"
+          mkdir -p "${OUT_NAME}"
+          cp -rlf _build/install/default/* "${OUT_NAME}"
+          tar --format=posix -cf "${OUT_NAME}.tar" "${OUT_NAME}"
+          gzip -9 "${OUT_NAME}.tar"
 
       - name: Upload assets
         uses: ncipollo/release-action@v1
@@ -52,7 +51,7 @@ jobs:
 
 
   release-x86_64-linux-musl-static:
-    name: Build for x86_64-linux-musl-static
+    name: Release for x86_64-linux-musl-static
     runs-on: ubuntu-latest
     steps:
 
@@ -63,14 +62,30 @@ jobs:
       - run: mkdir -p $OUT_NAME
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - run: docker buildx build --output type=local,dest=$OUT_NAME -f scripts/build-static.dockerfile .
+        uses: docker/setup-buildx-action@v4
+      - run: docker buildx build --output type=local,dest=$OUT_NAME -f scripts/build-static.Dockerfile .
 
-      - name: Test we can execute the exe on the host as a basic sanity check
-        run: $OUT_NAME/bin/image --help
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.OUT_NAME }}
+          name: release-x86_64-linux-musl-static
+
+      - name: Basic sanity checks on the built executable
+        run: |
+          # make sure the executable is static
+          file $OUT_NAME/bin/image
+          # make sure it doesn't link with anything
+          if ldd $OUT_NAME/bin/image; then
+            # if ldd exists with 0 it means it links to dynamic libraries
+            exit 1
+          fi
+          # call the executable
+          $OUT_NAME/bin/image
 
       - name: Make a tarball of build outputs
-        run: tar czf "$OUT_NAME.tar.gz" "$OUT_NAME"
+        run: |
+          tar --format=posix -cf "$OUT_NAME.tar" "$OUT_NAME"
+          gzip -9 "${OUT_NAME}.tar"
 
       - name: Upload assets
         uses: ncipollo/release-action@v1

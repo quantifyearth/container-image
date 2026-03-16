@@ -1,4 +1,4 @@
-(version 6.1.1)
+(version 6.2.1)
 
 (build
  (all_platforms
@@ -19,11 +19,12 @@
    sexplib0
    ppx_sexp_conv
    stringext
-   base64)))
+   base64
+   ipaddr)))
 
 (source
  (fetch
   (url
-   https://github.com/mirage/ocaml-cohttp/releases/download/v6.1.1/cohttp-6.1.1.tbz)
+   https://github.com/mirage/ocaml-cohttp/releases/download/v6.2.1/cohttp-6.2.1.tbz)
   (checksum
-   sha256=6b420c56203b3a0b515964f036bcea0fb9a362876b5791cd7ff50e12366c489c)))
+   sha256=65080247763442d1dc3cd90678b8233b798772f036ac81cd1eaade1f5d66a65f)))
