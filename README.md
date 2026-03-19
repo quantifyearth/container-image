@@ -36,7 +36,7 @@ opam install container-image
 To fetch the layers of an image:
 
 ```bash
-container-image fetch IMAGE_NAME[:TAG]
+image fetch IMAGE_NAME[:TAG]
 ```
 
 This command downloads the image layers to the current directory. By
@@ -47,7 +47,7 @@ default TAG is `latest`.
 To inspect an image's contents on the local filesystem:
 
 ```bash
-container-image checkout [TAG]
+image checkout [TAG]
 ```
 
 After running this command, you'll find the image's contents extracted
@@ -67,5 +67,5 @@ Contributions to the `container-image` project are welcome!
 
 ## License
 
-This project is licensed under the MIT License. See
-[LICENSE](link-to-license-file) for more details.
+This project is licensed under the ISC License. See [LICENSE](./LICENSE) for
+more details.
