@@ -23,15 +23,6 @@ jobs:
 
       - uses: ocaml-dune/setup-dune@v2
 
-      - name: Load dependencies from the cache
-        id: artifact-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: |
-            _build
-            ~/.cache/dune
-          key: ${{ matrix.os }}-artifacts-${{ hashFiles('dune.lock') }}
-
       - name: Build the project
         run: dune build @install --only-packages container-image --release
 
