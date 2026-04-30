@@ -98,31 +98,15 @@ in the "Actions" tab of the project.
 
 ### Updating the dependency versions
 
-The project contains a lock directory for Dune package management in the
+The project contains a lock directory for Dune package management stored in the
 `dune.lock` folder. This means that whenever you use Dune with the package
 management feature enabled it will use the exact versions of the compiler as
 well as the projects dependencies as specified in `dune.lock`.
 
-However dependencies might need to change in some cases:
-
-  * Updating the dependencies to new versions
-  * Adding or removing dependencies
-  * Changing the version constraints of existing packages
-
-In such case `dune` will detect that the dependencies declared in the opam file
-and `dune.lock` are out of sync. To update the dependencies use `dune pkg lock`
-which will re-create a new `dune.lock` directory with the newest dependency
-solution.
-
-```bash
-$ dune pkg lock
-$ git add -A dune.lock
-$ git commit
-```
-
-The dependency solver in Dune might add or remove files in `dune.lock` thus it
-is advisable to use `git add -A` to add all the changes to the index to commit
-the change. This avoids missing or duplicate files.
+To create an updated lock directory you can use `dune pkg lock` as [described
+in the Dune package management
+tutorial](https://dune.readthedocs.io/en/stable/tutorials/dune-package-management/locking.html#create-a-lock-directory-manually).
+Make sure to commit all changes to the updated lock directory.
 
 ## License
 
