@@ -1,0 +1,85 @@
+name: Build and upload binary releases
+
+on:
+  release:
+    types: [released]
+
+jobs:
+  release-unix:
+    name: Release for ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-15-intel
+            name: x86_64-macos
+          - os: macos-15
+            name: aarch64-macos
+          - os: ubuntu-latest
+            name: x86_64-linux
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - uses: ocaml-dune/setup-dune@v2
+
+      - name: Build the project
+        run: dune build @install --only-packages container-image --release
+
+      - name: Release a tarball of build outputs
+        run: |
+          OUT_NAME="container-image-${{ github.ref_name }}-${{ matrix.name }}"
+          mkdir -p "${OUT_NAME}"
+          cp -rlf _build/install/default/* "${OUT_NAME}"
+          tar --format=posix -cf "${OUT_NAME}.tar" "${OUT_NAME}"
+          gzip -9 "${OUT_NAME}.tar"
+
+      - name: Upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "*.tar.gz"
+
+
+  release-x86_64-linux-musl-static:
+    name: Release for x86_64-linux-musl-static
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v6
+
+      - run: echo OUT_NAME=container-image-${{ github.ref_name }}-x86_64-linux-statically-linked >> $GITHUB_ENV
+
+      - run: mkdir -p $OUT_NAME
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - run: docker buildx build --output type=local,dest=$OUT_NAME -f scripts/build-static.Dockerfile .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.OUT_NAME }}
+          name: release-x86_64-linux-musl-static
+
+      - name: Basic sanity checks on the built executable
+        run: |
+          # make sure the executable is static
+          file $OUT_NAME/bin/image
+          # make sure it doesn't link with anything
+          if ldd $OUT_NAME/bin/image; then
+            # if ldd exists with 0 it means it links to dynamic libraries
+            exit 1
+          fi
+          # call the executable
+          $OUT_NAME/bin/image
+
+      - name: Make a tarball of build outputs
+        run: |
+          tar --format=posix -cf "$OUT_NAME.tar" "$OUT_NAME"
+          gzip -9 "${OUT_NAME}.tar"
+
+      - name: Upload assets
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "*.tar.gz"
