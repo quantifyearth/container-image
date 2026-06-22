@@ -19,7 +19,7 @@ jobs:
             name: x86_64-linux
     steps:
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ocaml-dune/setup-dune@v2
 
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - run: echo OUT_NAME=container-image-${{ github.ref_name }}-x86_64-linux-statically-linked >> $GITHUB_ENV
 
